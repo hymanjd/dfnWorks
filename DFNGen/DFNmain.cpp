@@ -32,12 +32,14 @@
 #include <termios.h>
 #include "hotkey.h"
 
-
 // DO NOT CHANGE VAR NAME
 struct termios orig_termios; //used for custom console and hotkey
 
 // Global eps
 double eps;
+
+using std::cout;
+using std::endl;
 
 // SEE STRUCTURES.H FOR ALL STRUCTURE DEFINITIONS
 int main (int argc, char **argv) {
@@ -271,7 +273,7 @@ int main (int argc, char **argv) {
                 radiiAll << std::setprecision(8) <<  newPoly.xradius << " " << newPoly.yradius
                          << " " << newPoly.familyNum + 1 << "\n";
             }
-            
+
             int rejectCode = 1;
             int rejectCounter = 0;
             
@@ -299,7 +301,13 @@ int main (int argc, char **argv) {
                         continue; // Go to next iteration of while loop, test new translation
                     }
                 }
-                
+                bool quasi2DFlag;
+                quasi2DFlag = true; 
+                // polygon domain
+                if (quasi2DFlag){
+                    cout << "checking if center is in the sub-domain" << endl; 
+                }
+
                 // Create/assign bounding box
                 createBoundingBox(newPoly);
                 // Find line of intersection and FRAM check
