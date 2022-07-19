@@ -7,6 +7,10 @@
 #include "input.h"
 #include "readInputFunctions.h"
 #include "generatingPoints.h"
+#include "structures.h"
+
+using std::cout;
+using std::endl; 
 
 /*! DFN generation stop condition. 0 - nPoly option, 1 - P32 option.*/
 short stopCondition;
@@ -90,7 +94,7 @@ bool outputAcceptedRadiiPerFamily;
         0: Output all files
         1: Only output files required for ECPM upscaling.
         polygon.dat, radii_final.dat */
-bool ecpmOutput;
+bool ecpmOutput = false;
 
 /*! Beta is the rotation around the polygon's normal vector
         0 - Uniform distribution [0, 2PI)
@@ -511,10 +515,8 @@ int rejectsPerFracture;
 
 
 // Z - layers in the DFN
-
 /*! Number of layers defined. */
 int numOfLayers;
-
 
 /*! Array of layers:
     e.g. {+z1, -z1, +z2, -z2, ... , +zn, -zn}*/
@@ -561,6 +563,14 @@ int *rRegion;
     1 correspond to the first layer listed, 2 is the next layer listed, etc*/
 int *eRegion;
 
+/*! flag if the domain is pruned down to a final domain size*/
+bool quasi2DdomainFlag = false;
+
+int numOfDomainVertices;
+
+/*! Vector of points defining the 2D boundary of the domain polygon */
+std::vector<Point> domainVertices;
+
 /*! Global boolean array. Used with stopCondition = 1, P32 option.
     Number of elements is equal to the number of stochastic shape families.
     Elements correspond to families in the same order of the famProb array.
@@ -604,15 +614,13 @@ void getInput(char* input, std::vector<Shape> &shapeFamily) {
         layerVol = new float[numOfLayers];
         searchVar(inputFile, "layers:");
         std::cout << "Number of Layers: " << numOfLayers << "\n";
-        
         for (int i = 0; i < numOfLayers; i++) {
             int idx = i * 2;
             inputFile >> ch >> layers[idx] >> ch >> layers[idx + 1] >> ch;
             std::cout << "    Layer " << i + 1 << "{-z,+z}: {" << layers[idx] << "," << layers[idx + 1] << "}, Volume: ";
             layerVol[i] = domainSize[0] * domainSize[1] * (std::abs(layers[idx + 1] - layers[idx]));
             std::cout << layerVol[i] << "m^3\n";
-        }
-        
+        } 
         std::cout << "\n";
     }
     
@@ -662,8 +670,8 @@ void getInput(char* input, std::vector<Shape> &shapeFamily) {
     inputFile >> outputFinalRadiiPerFamily;
     searchVar(inputFile, "outputAcceptedRadiiPerFamily:");
     inputFile >> outputAcceptedRadiiPerFamily;
-    searchVar(inputFile, "ecpmOutput:");
-    inputFile >> ecpmOutput;
+    // searchVar(inputFile, "ecpmOutput:");
+    // inputFile >> ecpmOutput;
     searchVar(inputFile, "seed:");
     inputFile >> seed;
     searchVar(inputFile, "domainSizeIncrease:");
@@ -695,6 +703,34 @@ void getInput(char* input, std::vector<Shape> &shapeFamily) {
         std::cout << "Expecting Dip and Strike (RHR) for orientations\n";
     }
     
+    searchVar(inputFile, "quasi2DdomainFlag:");
+    inputFile >> quasi2DdomainFlag; 
+
+    if (quasi2DdomainFlag){
+
+        cout << "Expecting Quasi-2D domain" << endl;
+        searchVar(inputFile, "numOfDomainVertices:");
+        inputFile >> numOfDomainVertices;
+        
+        std::cout << "Number of Vertices in Quasi 2D Domain: " << numOfDomainVertices << "\n";
+        
+        searchVar(inputFile, "vertices:");
+        Point tmpPoint;
+        
+        for (int i = 0; i < numOfDomainVertices; i++) {
+            inputFile >> ch >> tmpPoint.x >> ch >> tmpPoint.y >> ch;
+            domainVertices.push_back(tmpPoint);
+        } 
+        for (int i = 0; i < numOfDomainVertices; i++){
+            cout << "Vertex " << i+1 << ": {" << domainVertices[i].x << "," << domainVertices[i].y << "}" << endl; 
+        }
+        std::cout << "\n";
+    }
+    else{
+        cout << "Not Expecting Quasi-2D domain" << endl;
+    }
+
+
     if (nFamEll > 0 || nFamRect > 0) {
         searchVar(inputFile, "famProb:");
         famProb = new float[(nFamEll + nFamRect)];

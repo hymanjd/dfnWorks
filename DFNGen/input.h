@@ -2,6 +2,8 @@
 #define _input_h_
 #include <string>
 #include <fstream>
+#include <vector>
+#include "structures.h"
 // Variable prototypes for user input variables
 
 extern short stopCondition;
@@ -121,6 +123,7 @@ extern float *e_p32Targets;
 extern float *r_p32Targets;
 extern float removeFracturesLessThan;
 extern std::string polygonFile;
+extern std::vector<Point> vertices;
 
 #endif
 
