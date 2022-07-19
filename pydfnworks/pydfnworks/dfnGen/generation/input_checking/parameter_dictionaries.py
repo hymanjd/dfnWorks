@@ -42,6 +42,24 @@ def load_parameters():
             'value': None,
             'description': "Type <list of 3 floats>, e.g., {x,y,z}\nCreates a temporary size increase of the domain during sampling.\nExample: {1,1,1} will increase the domain size by adding 0.5 to the +x, and subtracting 0.5 to the -x.\nMust be less than 1/2 the domain size value in that direction."
         },
+        'quasi2DdomainFlag': {
+            'type': bool,
+            'list': False,
+            'value': False,
+            'description': "See pydfnworks docs"
+        },
+        'numOfDomainVertices': {
+            'type': int,
+            'list': False,
+            'value': None,
+            'description': "Type <int>\nNumber of vertices in the 2D domain boundary. \n"
+        },
+        'vertices': {
+            'type': float,
+            'list': True,
+            'value': None,
+            'description': "Type: x,y vertex pairs.\n"
+        },
         'boundaryFaces': {
             'type': int,
             'list': True,
