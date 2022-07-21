@@ -566,6 +566,7 @@ int *eRegion;
 /*! flag if the domain is pruned down to a final domain size*/
 bool quasi2DdomainFlag = false;
 
+/*! Number of points on the 2D boundary of the polygon domain */
 int numOfDomainVertices;
 
 /*! Vector of points defining the 2D boundary of the domain polygon */
@@ -712,7 +713,7 @@ void getInput(char* input, std::vector<Shape> &shapeFamily) {
         searchVar(inputFile, "numOfDomainVertices:");
         inputFile >> numOfDomainVertices;
         
-        std::cout << "Number of Vertices in Quasi 2D Domain: " << numOfDomainVertices << "\n";
+        std::cout << "Number of Vertices in Quasi-2D Domain: " << numOfDomainVertices << "\n";
         
         searchVar(inputFile, "vertices:");
         Point tmpPoint;
@@ -720,6 +721,7 @@ void getInput(char* input, std::vector<Shape> &shapeFamily) {
         for (int i = 0; i < numOfDomainVertices; i++) {
             inputFile >> ch >> tmpPoint.x >> ch >> tmpPoint.y >> ch;
             domainVertices.push_back(tmpPoint);
+            cout << tmpPoint.x << " " << tmpPoint.y << endl; 
         } 
         for (int i = 0; i < numOfDomainVertices; i++){
             cout << "Vertex " << i+1 << ": {" << domainVertices[i].x << "," << domainVertices[i].y << "}" << endl; 
@@ -729,7 +731,6 @@ void getInput(char* input, std::vector<Shape> &shapeFamily) {
     else{
         cout << "Not Expecting Quasi-2D domain" << endl;
     }
-
 
     if (nFamEll > 0 || nFamRect > 0) {
         searchVar(inputFile, "famProb:");

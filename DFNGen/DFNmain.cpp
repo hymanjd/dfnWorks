@@ -19,6 +19,7 @@
 #include "fractureEstimating.h"
 #include "debugFunctions.h"
 #include "removeFractures.h"
+#include "quasi2dDomain.h"
 
 // Used for automated python testing
 #include "testing.h"
@@ -278,7 +279,6 @@ int main (int argc, char **argv) {
             int rejectCounter = 0;
             
             while (rejectCode != 0) { // Loop used to reinsert same poly with different translation
-            
                 // HOT KEY: check for keyboard input
                 if (kbhit()) {
                     key = getch();
@@ -301,12 +301,7 @@ int main (int argc, char **argv) {
                         continue; // Go to next iteration of while loop, test new translation
                     }
                 }
-                bool quasi2DFlag;
-                quasi2DFlag = true; 
-                // polygon domain
-                if (quasi2DFlag){
-                    cout << "checking if center is in the sub-domain" << endl; 
-                }
+
 
                 // Create/assign bounding box
                 createBoundingBox(newPoly);
@@ -601,7 +596,16 @@ int main (int argc, char **argv) {
         std::cout << "Removed " << size - acceptedPoly.size() << " fractures with radius less than " << removeFracturesLessThan << "\n\n";
         file      << "Removed " << size - acceptedPoly.size() << " fractures with radius less than " << removeFracturesLessThan << "\n\n";
     }
-    
+
+    if (quasi2DdomainFlag) {
+        cout << "\nExtracting fractures from a quasi - 2D domain" << endl;
+        file << "\nExtracting fractures from a quasi - 2D domain" << endl;
+        int size = acceptedPoly.size();
+        quasi2dDomain(acceptedPoly, intPts, triplePoints, pstats);
+        std::cout << "Removed " << size - acceptedPoly.size() << " fractures outside subdomain \n\n";
+        file      << "Removed " << size - acceptedPoly.size() << " fractures outside subdomain \n\n";
+    }
+
     /*  Remove any isolated fractures and return
         a list of polygon indices matching the users
         boundaryFaces option. If input option
