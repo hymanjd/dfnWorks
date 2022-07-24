@@ -605,7 +605,7 @@ int main (int argc, char **argv) {
         std::cout << "Removed " << size - acceptedPoly.size() << " fractures outside subdomain \n\n";
         file      << "Removed " << size - acceptedPoly.size() << " fractures outside subdomain \n\n";
     }
-
+    
     /*  Remove any isolated fractures and return
         a list of polygon indices matching the users
         boundaryFaces option. If input option
@@ -614,8 +614,9 @@ int main (int argc, char **argv) {
         If ignoreBoundaryFaces input option is on,
         DFN will keep all fractures with intersections.
     */
+
     std::vector<unsigned int> finalFractures =  getCluster(pstats);
-    // Sort fracture indecies to retain order by acceptance
+    // Sort fracture indices to retain order by acceptance
     std::sort (finalFractures.begin(), finalFractures.end());
     // Error check for no boundary connection
     bool printConnectivityError = 0;

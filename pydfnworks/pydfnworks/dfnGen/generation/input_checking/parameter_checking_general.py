@@ -63,14 +63,17 @@ def check_p32_targets(params):
     # Check P32 inputs for ellipses
     if params['nFamEll']['value'] > 0:
         hf.check_none('e_p32Targets', params['e_p32Targets']['value'])
-        hf.check_length('e_p32Targets', params['e_p32Targets']['value'],params['nFamEll']['value'])
-        hf.check_values('e_p32Targets',params['e_p32Targets']['value'],0)
+        hf.check_length('e_p32Targets', params['e_p32Targets']['value'],
+                        params['nFamEll']['value'])
+        hf.check_values('e_p32Targets', params['e_p32Targets']['value'], 0)
 
     # Check P32 inputs for rectangles
     if params['nFamRect']['value'] > 0:
         hf.check_none('r_p32Targets', params['r_p32Targets']['value'])
-        hf.check_length('r_p32Targets', params['r_p32Targets']['value'],params['nFamRect']['value'])
-        hf.check_values('r_p32Targets',params['r_p32Targets']['value'],0)
+        hf.check_length('r_p32Targets', params['r_p32Targets']['value'],
+                        params['nFamRect']['value'])
+        hf.check_values('r_p32Targets', params['r_p32Targets']['value'], 0)
+
 
 def check_domain(params):
     """ Check that domain properties. 
@@ -103,8 +106,7 @@ def check_domain(params):
                 f"\"domainSize\" entry {i+1} has value {val}. Value must be positive"
             )
 
-    if len(params['domainSizeIncrease']
-           ['value']) != 3:
+    if len(params['domainSizeIncrease']['value']) != 3:
         hf.print_error(
             f"\"domainSizeIncrease\" has defined {len(params['domainSizeIncrease']['value'])} value(s) but there must be 3 non-zero values to represent x, y, and z dimensions"
         )
@@ -135,12 +137,14 @@ def check_domain(params):
                         f"\"boundaryFaces\" entry {i+1} has value {val}. Must be 0 or 1."
                     )
         else:
-            hf.print_warning("--> Ignoring boundary faces. Keeping all clusters.")
+            hf.print_warning(
+                "--> Ignoring boundary faces. Keeping all clusters.")
     except:
         print("Error while checking 'boundaryFaces' parameters.")
         print(f"Values provided: {params['boundaryFaces']['value']}\n")
         print(params['boundaryFaces']['description'])
         hf.print_error("")
+
 
 def check_rejects_per_fracture(rejectsPerFracture):
     """ Check that the value of the rejectsPerFracture is a positive integer. If a value of 0 is provided, it's changed to 1. 
@@ -497,6 +501,46 @@ def check_regions_general(params):
             )
 
 
+def check_quasi2D_general(params):
+    """ Check the number of points in the polygon boundary matches the requested number. Checks polygon vertices are within the domain.
+
+    Parameters
+    -------------
+        params : dict
+            parameter dictionary
+    Returns
+    ---------
+        None
+
+    Notes
+    ---------
+        Exits program is inconsistencies are found.
+    """
+    hf.check_none('vertices', params['vertices']['value'])
+    hf.check_length('vertices', params['vertices']['value'],
+                    params['numOfDomainVertices']['value'])
+
+    half_x_domain = params['domainSize']['value'][0] / 2.0
+    half_y_domain = params['domainSize']['value'][1] / 2.0
+
+    for i, vertex in enumerate(params['vertices']['value']):
+        if len(vertex) != 2:
+            hf.print_error(
+                f"\"vertices\" has defined #{i+1} to have {len(vertex)} element(s) but each region must have 2 elements, which define its x and y coordinates"
+            )
+
+        x, y = vertex
+        if x < -half_x_domain or x > half_x_domain:
+            hf.print_error(
+                f"'vertices' has defined point #{i+1} with x value outside the domain.\nValue provided: {x}\n The domain's x-size is half of 1st value in 'domainSize' (x-dimension) in both positive and negative directions."
+            )
+
+        if y < -half_y_domain or x > half_y_domain:
+            hf.print_error(
+                f"'vertices' has defined point #{i+1} with y value outside the domain.\nValue provided: {y}\n The domain's y-size is half of 2nd value in 'domainSize' (y-dimension) in both positive and negative directions."
+            )
+
+
 def check_user_defined(params):
 
     user_files = [("userEllipsesOnOff", "UserEll_Input_File_Path"),
@@ -530,3 +574,5 @@ def check_general(params):
         check_layers_general(params)
     if params['numOfRegions']['value'] > 0:
         check_regions_general(params)
+    if params['quasi2DdomainFlag']['value']:
+        check_quasi2D_general(params)

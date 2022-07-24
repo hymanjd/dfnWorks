@@ -333,6 +333,46 @@ def get_regions(params, input_file):
     params["regions"]["value"] = values
 
 
+def get_quasi2D_vertices(params, input_file):
+    """ If the user wants to use a polygon domain, walk back through the file to gather the vertices
+
+    Parameters
+    ------------
+        input_file : string
+            input file name
+
+        params : dictionary 
+            dictionary of input parameters from file
+    Returns
+    ------------
+        None
+        
+
+    Notes
+    -------
+        None
+
+    """
+    flag = False
+    j = 0
+    key = 'vertices'
+    values = []
+    with open(input_file, "r") as fp:
+        for i, line in enumerate(fp.readlines()):
+            if "vertices:" in line:
+                flag = True
+                j = 0
+            elif flag:
+                if hf.has_curlys(line, key):
+                    value = hf.get_groups(line, key)
+                    values.append([float(value[0]), float(value[1])])
+                j += 1
+            if j > params["numOfDomainVertices"]["value"]:
+                break
+
+    params["vertices"]["value"] = values
+
+
 def parse_input(input_file):
     """ Parse each line of the input file and checks if all mandatory parameters have been found.
 
@@ -359,6 +399,9 @@ def parse_input(input_file):
 
     params, mandatory = load_parameters()
 
+    if params["quasi2DdomainFlag"]["value"]:
+        mandatory.add('numOfDomainVertices')
+
     found_keys = []
     for i, line in enumerate(input_iterator):
         line = strip_comments(line, input_iterator)
@@ -376,5 +419,8 @@ def parse_input(input_file):
 
     if params["numOfRegions"]["value"] > 0:
         get_regions(params, input_file)
+
+    if params["quasi2DdomainFlag"]["value"]:
+        get_quasi2D_vertices(params, input_file)
 
     return params
