@@ -170,17 +170,11 @@ void readDomainVertices(std::string filename) {
     for (int i = 0; i < numOfDomainVertices; i++) {
         getline(verticesFile, line);
         parsedLine = splitOnWhiteSpace(line);
-        tmpPoint.x = std::stod(parsedLine[1]);
-        tmpPoint.y = std::stod(parsedLine[0]);
+        tmpPoint.x = std::stod(parsedLine[0]);
+        tmpPoint.y = std::stod(parsedLine[1]);
         domainVertices.push_back(tmpPoint);
     }
-    
     verticesFile.close();
-    
-    for (unsigned int i = 0; i < domainVertices.size(); i++) {
-        cout << "Vertex # " << "X: " << domainVertices[i].x << ", Y: " << domainVertices[i].y << endl;
-    }
-    
     cout << "Reading in Vertices Complete\n" << endl;
 }
 
