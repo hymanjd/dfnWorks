@@ -10,7 +10,7 @@
 #include "structures.h"
 
 using std::cout;
-using std::endl; 
+using std::endl;
 
 /*! DFN generation stop condition. 0 - nPoly option, 1 - P32 option.*/
 short stopCondition;
@@ -615,13 +615,15 @@ void getInput(char* input, std::vector<Shape> &shapeFamily) {
         layerVol = new float[numOfLayers];
         searchVar(inputFile, "layers:");
         std::cout << "Number of Layers: " << numOfLayers << "\n";
+        
         for (int i = 0; i < numOfLayers; i++) {
             int idx = i * 2;
             inputFile >> ch >> layers[idx] >> ch >> layers[idx + 1] >> ch;
             std::cout << "    Layer " << i + 1 << "{-z,+z}: {" << layers[idx] << "," << layers[idx + 1] << "}, Volume: ";
             layerVol[i] = domainSize[0] * domainSize[1] * (std::abs(layers[idx + 1] - layers[idx]));
             std::cout << layerVol[i] << "m^3\n";
-        } 
+        }
+        
         std::cout << "\n";
     }
     
@@ -705,33 +707,25 @@ void getInput(char* input, std::vector<Shape> &shapeFamily) {
     }
     
     searchVar(inputFile, "quasi2DdomainFlag:");
-    inputFile >> quasi2DdomainFlag; 
-
-    if (quasi2DdomainFlag){
-
+    inputFile >> quasi2DdomainFlag;
+    
+    if (quasi2DdomainFlag) {
         cout << "Expecting Quasi-2D domain" << endl;
-        searchVar(inputFile, "numOfDomainVertices:");
-        inputFile >> numOfDomainVertices;
-        
-        std::cout << "Number of Vertices in Quasi-2D Domain: " << numOfDomainVertices << "\n";
-        
-        searchVar(inputFile, "vertices:");
-        Point tmpPoint;
+        searchVar(inputFile, "quasi2DdomainFile:");
+        inputFile >> tempstring;
+        std::cout << "Polygon quasi-2D-domain File: " << tempstring << std::endl;
+        readDomainVertices(tempstring);
+        cout << "There are " << numOfDomainVertices << " Vertices on the boundary" << endl;
         
         for (int i = 0; i < numOfDomainVertices; i++) {
-            inputFile >> ch >> tmpPoint.x >> ch >> tmpPoint.y >> ch;
-            domainVertices.push_back(tmpPoint);
-            cout << tmpPoint.x << " " << tmpPoint.y << endl; 
-        } 
-        for (int i = 0; i < numOfDomainVertices; i++){
-            cout << "Vertex " << i+1 << ": {" << domainVertices[i].x << "," << domainVertices[i].y << "}" << endl; 
+            cout << "Vertex " << i + 1 << ": {" << domainVertices[i].x << "," << domainVertices[i].y << "}" << endl;
         }
+        
         std::cout << "\n";
-    }
-    else{
+    } else {
         cout << "Not Expecting Quasi-2D domain" << endl;
     }
-
+    
     if (nFamEll > 0 || nFamRect > 0) {
         searchVar(inputFile, "famProb:");
         famProb = new float[(nFamEll + nFamRect)];

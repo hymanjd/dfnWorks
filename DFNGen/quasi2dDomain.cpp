@@ -27,7 +27,7 @@ bool inQuasi2DDomain(double x, double y) {
         * 5) count the number of times the ray emitting from the point crosses the boundary of the polygon
         * if the count is zero or even, the point is outside the domain,
         * if the count is odd, the point is inside the domain
-
+    
     Ray Casting adapted from
     
     https://wrf.ecse.rpi.edu/Research/Short_Notes/pnpoly.html#The%20Inequality%20Tests%20are%20Tricky
@@ -88,7 +88,6 @@ bool inQuasi2DDomain(double x, double y) {
 // Arg 5: Stats structure (DFN Statisctics)
 
 void quasi2dDomain(std::vector<Poly> &acceptedPolys, std::vector<IntPoints> &intPts, std::vector<Point> triplePoints, Stats &pstats) {
-
     std::vector<Poly> finalPolyList;
     // Clear GroupData
     pstats.groupData.clear();
@@ -100,32 +99,33 @@ void quasi2dDomain(std::vector<Poly> &acceptedPolys, std::vector<IntPoints> &int
     intPts.clear();
     // Re-init nextGroupNum
     pstats.nextGroupNum = 1;
-
+    
     // for (int i = 0; i < numOfDomainVertices; i++){
-    //     cout << "domainVertices[i].x " << domainVertices[i].x << " domainVertices[i].y " << domainVertices[i].y << endl;  
-    // } 
-
+    //     cout << "domainVertices[i].x " << domainVertices[i].x << " domainVertices[i].y " << domainVertices[i].y << endl;
+    // }
+    
     for (unsigned int i = 0; i < acceptedPolys.size(); i++) {
         double x = acceptedPolys[i].translation[0];
         double y = acceptedPolys[i].translation[1];
+        
         // cout << "fracture " << i + 1 << " center " << x << "," << y << endl;
-        if (!inQuasi2DDomain(x,y)){
+        if (!inQuasi2DDomain(x, y)) {
             delete[] acceptedPolys[i].vertices;
-            continue; 
+            continue;
         }
-
+        
         Poly newPoly = acceptedPolys[i];
         newPoly.groupNum = 0; // Reset cluster group number
         newPoly.intersectionIndex.clear(); // Remove ref to old intersections
         // Find line of intersection and FRAM check
-        int rejectCode; 
-        if (disableFram){
+        int rejectCode;
+        
+        if (disableFram) {
             rejectCode = 0;
-        }
-        else{
+        } else {
             rejectCode = intersectionChecking(newPoly, finalPolyList, intPts, pstats, triplePoints);
         }
-
+        
         // IF POLY ACCEPTED:
         if (rejectCode == 0) { // Intersections are ok
             // SAVING POLYGON (intersection and triple points saved witchin intersectionChecking())
@@ -134,6 +134,7 @@ void quasi2dDomain(std::vector<Poly> &acceptedPolys, std::vector<IntPoints> &int
             std::cout << "\nError rebuilding dfn, previously accepted fracture was rejected during DFN rebuild.\n";
         }
     }
+    
     std::cout << "Rebuilding DFN complete.\n";
     acceptedPolys.clear();
     acceptedPolys = finalPolyList;

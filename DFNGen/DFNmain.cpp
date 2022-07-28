@@ -274,7 +274,7 @@ int main (int argc, char **argv) {
                 radiiAll << std::setprecision(8) <<  newPoly.xradius << " " << newPoly.yradius
                          << " " << newPoly.familyNum + 1 << "\n";
             }
-
+            
             int rejectCode = 1;
             int rejectCounter = 0;
             
@@ -301,19 +301,19 @@ int main (int argc, char **argv) {
                         continue; // Go to next iteration of while loop, test new translation
                     }
                 }
-
-
+                
                 // Create/assign bounding box
                 createBoundingBox(newPoly);
+                
                 // Find line of intersection and FRAM check
                 // rejectCode = intersectionChecking(newPoly, acceptedPoly, intPts, pstats, triplePoints);
                 // Find line of intersection and FRAM check
                 if (disableFram == false) {
-                     rejectCode = intersectionChecking(newPoly, acceptedPoly, intPts, pstats, triplePoints);
+                    rejectCode = intersectionChecking(newPoly, acceptedPoly, intPts, pstats, triplePoints);
+                } else {
+                    rejectCode = 0;
                 }
-                else{
-                     rejectCode = 0;
-                }
+                
 #ifdef TESTING
                 
                 if (rejectCode != 0) {
@@ -596,7 +596,7 @@ int main (int argc, char **argv) {
         std::cout << "Removed " << size - acceptedPoly.size() << " fractures with radius less than " << removeFracturesLessThan << "\n\n";
         file      << "Removed " << size - acceptedPoly.size() << " fractures with radius less than " << removeFracturesLessThan << "\n\n";
     }
-
+    
     if (quasi2DdomainFlag) {
         cout << "\nExtracting fractures from a quasi - 2D domain" << endl;
         file << "\nExtracting fractures from a quasi - 2D domain" << endl;
@@ -614,7 +614,6 @@ int main (int argc, char **argv) {
         If ignoreBoundaryFaces input option is on,
         DFN will keep all fractures with intersections.
     */
-
     std::vector<unsigned int> finalFractures =  getCluster(pstats);
     // Sort fracture indices to retain order by acceptance
     std::sort (finalFractures.begin(), finalFractures.end());
