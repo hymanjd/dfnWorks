@@ -1,5 +1,6 @@
 import pydfnworks.dfnGen.generation.input_checking.helper_functions as hf
 from shutil import copy
+from numpy import zeros
 
 
 def check_stop_condition(params):
@@ -516,19 +517,38 @@ def check_quasi2D_general(params):
     ---------
         Exits program is inconsistencies are found.
     """
-    hf.check_none('vertices', params['vertices']['value'])
-    hf.check_length('vertices', params['vertices']['value'],
-                    params['numOfDomainVertices']['value'])
 
     half_x_domain = params['domainSize']['value'][0] / 2.0
     half_y_domain = params['domainSize']['value'][1] / 2.0
 
-    for i, vertex in enumerate(params['vertices']['value']):
-        if len(vertex) != 2:
+    ## Check path for
+    hf.check_path(params['quasi2DdomainFile']['value'])
+    copy(params['quasi2DdomainFile']['value'], "./")
+
+    ## Read in domain polygon file
+    with open(params['quasi2DdomainFile']['value'], 'r') as fvertices:
+        num_vertices = int(fvertices.readline())
+        vertices = zeros((num_vertices, 2))
+        for i, line in enumerate(fvertices.readlines()):
+            line = line.split()
+            if len(line) != 2:
+                hf.print_error(
+                    f"\"vertices\" has defined #{i} to have 2 element(s) but each region must have 2 elements, which define its x and y coordinates"
+                )
+            if i < num_vertices:
+                vertices[i][0] = float(line[0])
+                vertices[i][1] = float(line[1])
+            else:
+                hf.print_error(
+                    f"Too many points in the file {params['quasi2DdomainFile']['value']}.  Expecting {num_vertices}"
+                )
+
+        if i < num_vertices - 1:
             hf.print_error(
-                f"\"vertices\" has defined #{i+1} to have {len(vertex)} element(s) but each region must have 2 elements, which define its x and y coordinates"
+                f"Too few points in the file {params['quasi2DdomainFile']['value']}. Expecting {num_vertices}"
             )
 
+    for i, vertex in enumerate(vertices):
         x, y = vertex
         if x < -half_x_domain or x > half_x_domain:
             hf.print_error(
@@ -539,6 +559,8 @@ def check_quasi2D_general(params):
             hf.print_error(
                 f"'vertices' has defined point #{i+1} with y value outside the domain.\nValue provided: {y}\n The domain's y-size is half of 2nd value in 'domainSize' (y-dimension) in both positive and negative directions."
             )
+    # delete vertices
+    del vertices
 
 
 def check_user_defined(params):
@@ -550,7 +572,6 @@ def check_user_defined(params):
                   ("userPolygonByCoord", "PolygonByCoord_Input_File_Path")]
 
     for flag, path in user_files:
-
         # User Ellipse
         hf.check_none(flag, params[flag]['value'])
         if params[flag]['value']:

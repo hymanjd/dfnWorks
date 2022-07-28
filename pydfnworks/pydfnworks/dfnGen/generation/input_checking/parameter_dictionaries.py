@@ -1,3 +1,6 @@
+import string
+
+
 def load_parameters():
     """ load dictionary of DFNGen parameters
 
@@ -66,21 +69,11 @@ def load_parameters():
             'value': False,
             'description': "See pydfnworks docs"
         },
-        'numOfDomainVertices': {
-            'type':
-            int,
-            'list':
-            False,
-            'value':
-            None,
-            'description':
-            "Type <int>\nNumber of vertices in the 2D domain boundary. \n"
-        },
-        'vertices': {
-            'type': float,
-            'list': True,
+        'quasi2DdomainFile': {
+            'type': str,
+            'list': False,
             'value': None,
-            'description': "Type: x,y vertex pairs.\n"
+            'description': "File Containing polygon boundaries"
         },
         'boundaryFaces': {
             'type':
