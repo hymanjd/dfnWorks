@@ -43,14 +43,7 @@ layers:
 ecpmOutput: 0 
 
 quasi2DdomainFlag: 1
-numOfDomainVertices: 6
-vertices:
-{-50, 100}
-{0, 100}
-{25, 50}
-{25, -50}
-{0, -100}
-{-50, -10}
+quasi2DdomainFile: /Users/hymanjd/src/dfnWorks-jdhdev/examples/quasi2D-domain/vertices.dat
 
 numOfRegions: 0 // Number of regions
 regions: 
