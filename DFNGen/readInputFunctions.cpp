@@ -174,6 +174,7 @@ void readDomainVertices(std::string filename) {
         tmpPoint.y = std::stod(parsedLine[1]);
         domainVertices.push_back(tmpPoint);
     }
+    
     verticesFile.close();
     cout << "Reading in Vertices Complete\n" << endl;
 }

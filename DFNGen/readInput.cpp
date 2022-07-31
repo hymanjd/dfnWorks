@@ -564,7 +564,7 @@ int *rRegion;
 int *eRegion;
 
 /*! flag if the domain is pruned down to a final domain size*/
-bool quasi2DdomainFlag = false;
+bool polygonBoundaryFlag = false;
 
 /*! Number of points on the 2D boundary of the polygon domain */
 int numOfDomainVertices;
@@ -706,14 +706,14 @@ void getInput(char* input, std::vector<Shape> &shapeFamily) {
         std::cout << "Expecting Dip and Strike (RHR) for orientations\n";
     }
     
-    searchVar(inputFile, "quasi2DdomainFlag:");
-    inputFile >> quasi2DdomainFlag;
+    searchVar(inputFile, "polygonBoundaryFlag:");
+    inputFile >> polygonBoundaryFlag;
     
-    if (quasi2DdomainFlag) {
-        cout << "Expecting Quasi-2D domain" << endl;
-        searchVar(inputFile, "quasi2DdomainFile:");
+    if (polygonBoundaryFlag) {
+        cout << "Expecting Polygon Boundary for domain edges" << endl;
+        searchVar(inputFile, "polygonBoundaryFile:");
         inputFile >> tempstring;
-        std::cout << "Polygon quasi-2D-domain File: " << tempstring << std::endl;
+        std::cout << "Polygon Boundary File: " << tempstring << std::endl;
         readDomainVertices(tempstring);
         cout << "There are " << numOfDomainVertices << " Vertices on the boundary" << endl;
         

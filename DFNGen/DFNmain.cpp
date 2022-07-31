@@ -19,7 +19,7 @@
 #include "fractureEstimating.h"
 #include "debugFunctions.h"
 #include "removeFractures.h"
-#include "quasi2dDomain.h"
+#include "polygonBoundary.h"
 
 // Used for automated python testing
 #include "testing.h"
@@ -597,11 +597,11 @@ int main (int argc, char **argv) {
         file      << "Removed " << size - acceptedPoly.size() << " fractures with radius less than " << removeFracturesLessThan << "\n\n";
     }
     
-    if (quasi2DdomainFlag) {
-        cout << "\nExtracting fractures from a quasi - 2D domain" << endl;
-        file << "\nExtracting fractures from a quasi - 2D domain" << endl;
+    if (polygonBoundaryFlag) {
+        cout << "\nExtracting fractures from a polygon boundary domain" << endl;
+        file << "\nExtracting fractures from a polygon boundary domain" << endl;
         int size = acceptedPoly.size();
-        quasi2dDomain(acceptedPoly, intPts, triplePoints, pstats);
+        polygonBoundary(acceptedPoly, intPts, triplePoints, pstats);
         std::cout << "Removed " << size - acceptedPoly.size() << " fractures outside subdomain \n\n";
         file      << "Removed " << size - acceptedPoly.size() << " fractures outside subdomain \n\n";
     }

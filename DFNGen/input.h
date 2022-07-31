@@ -22,7 +22,7 @@ extern bool printRejectReasons;
 extern bool outputFinalRadiiPerFamily;
 extern bool outputAcceptedRadiiPerFamily;
 extern bool ecpmOutput;
-extern bool quasi2DdomainFlag;
+extern bool polygonBoundaryFlag;
 extern int numOfDomainVertices;
 extern std::vector<Point> domainVertices;
 extern int orientationOption;

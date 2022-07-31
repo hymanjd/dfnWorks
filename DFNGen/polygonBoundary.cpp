@@ -1,4 +1,4 @@
-#include "quasi2dDomain.h"
+#include "polygonBoundary.h"
 #include "computationalGeometry.h"
 #include "structures.h"
 #include "input.h"
@@ -12,7 +12,7 @@
 using std::cout;
 using std::endl;
 
-bool inQuasi2DDomain(double x, double y) {
+bool inPolygonBoundary(double x, double y) {
     /*! Checks if a point is within the polygon domain using a ray casting algorithm.
         1) create a parametric equation for a ray coming from the new Points
         * r(x) = newPoint.x + t * 1
@@ -87,7 +87,7 @@ bool inQuasi2DDomain(double x, double y) {
 // Arg 4: Array of all triple intersection points
 // Arg 5: Stats structure (DFN Statisctics)
 
-void quasi2dDomain(std::vector<Poly> &acceptedPolys, std::vector<IntPoints> &intPts, std::vector<Point> triplePoints, Stats &pstats) {
+void polygonBoundary(std::vector<Poly> &acceptedPolys, std::vector<IntPoints> &intPts, std::vector<Point> triplePoints, Stats &pstats) {
     std::vector<Poly> finalPolyList;
     // Clear GroupData
     pstats.groupData.clear();
@@ -109,7 +109,7 @@ void quasi2dDomain(std::vector<Poly> &acceptedPolys, std::vector<IntPoints> &int
         double y = acceptedPolys[i].translation[1];
         
         // cout << "fracture " << i + 1 << " center " << x << "," << y << endl;
-        if (!inQuasi2DDomain(x, y)) {
+        if (!inPolygonBoundary(x, y)) {
             delete[] acceptedPolys[i].vertices;
             continue;
         }
