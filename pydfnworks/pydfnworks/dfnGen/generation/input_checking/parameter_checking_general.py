@@ -552,12 +552,12 @@ def check_quasi2D_general(params):
         x, y = vertex
         if x < -half_x_domain or x > half_x_domain:
             hf.print_error(
-                f"'vertices' has defined point #{i+1} with x value outside the domain.\nValue provided: {x}\n The domain's x-size is half of 1st value in 'domainSize' (x-dimension) in both positive and negative directions."
+                f"'vertices' has defined point #{i+1} with x value outside the domain.\nValue provided: {x}. Domain boundary: {half_x_domain}.\n The domain's x-size is half of 1st value in 'domainSize' (x-dimension) in both positive and negative directions."
             )
 
-        if y < -half_y_domain or x > half_y_domain:
+        if y < -half_y_domain or y > half_y_domain:
             hf.print_error(
-                f"'vertices' has defined point #{i+1} with y value outside the domain.\nValue provided: {y}\n The domain's y-size is half of 2nd value in 'domainSize' (y-dimension) in both positive and negative directions."
+                f"'vertices' has defined point #{i+1} with y value outside the domain.\nValue provided: {y}. Domain boundary: {half_y_domain}.\n The domain's y-size is half of 2nd value in 'domainSize' (y-dimension) in both positive and negative directions."
             )
     # delete vertices
     del vertices
