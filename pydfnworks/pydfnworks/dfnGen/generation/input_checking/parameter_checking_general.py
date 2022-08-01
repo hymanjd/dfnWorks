@@ -502,7 +502,7 @@ def check_regions_general(params):
             )
 
 
-def check_quasi2D_general(params):
+def check_polygon_boundary_general(params):
     """ Check the number of points in the polygon boundary matches the requested number. Checks polygon vertices are within the domain.
 
     Parameters
@@ -522,8 +522,8 @@ def check_quasi2D_general(params):
     half_y_domain = params['domainSize']['value'][1] / 2.0
 
     ## Check path for
-    hf.check_path(params['quasi2DdomainFile']['value'])
-    copy(params['quasi2DdomainFile']['value'], "./")
+    hf.check_path(params['polygonBoundaryFile']['value'])
+    copy(params['polygonBoundaryFile']['value'], "./")
 
     ## Read in domain polygon file
     with open(params['quasi2DdomainFile']['value'], 'r') as fvertices:
@@ -595,5 +595,5 @@ def check_general(params):
         check_layers_general(params)
     if params['numOfRegions']['value'] > 0:
         check_regions_general(params)
-    if params['quasi2DdomainFlag']['value']:
-        check_quasi2D_general(params)
+    if params['polygonBoundaryFlag']['value']:
+        check_polygon_boundary_general(params)
