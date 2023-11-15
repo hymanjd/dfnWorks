@@ -52,7 +52,7 @@ def get_fracture_segments(transfer_time,
 
     # Compute the maximum segment length
     segment_length = ((b * np.sqrt(transfer_time)) /
-                      (matrix_porosity * np.sqrt(matrix_diffusivity))
+                      (np.sqrt(matrix_porosity*matrix_diffusivity))
                       ) * special.erfcinv(1.0 - plim) * velocity
     # if that's bigger than the edge size, just return the edge length as a single segment
     if segment_length >= fracture_length:
@@ -210,7 +210,7 @@ def transfer_probabilities(b_min,
     """
     # estimate lower bound
     # get the minimum factor
-    a_min = (matrix_porosity * np.sqrt(matrix_diffusivity)) / b_max
+    a_min = (np.sqrt(matrix_porosity*matrix_diffusivity)) / b_max
     # sample at the lowest value of tf, with sample ~ 0
     t_diff_lb = t_diff_unlimited(a_min, tf_min, eps)
     # Below this value the inversse laplace transform does not convergence
@@ -220,7 +220,7 @@ def transfer_probabilities(b_min,
 
     # estimate upper bound
     # get the maximum factor
-    a_max = (matrix_porosity * np.sqrt(matrix_diffusivity)) / b_min
+    a_max = (np.sqrt(matrix_porosity*matrix_diffusivity)) / b_min
     # sample at the largest value of tf, with sample ~ 1
     t_diff_ub = t_diff_unlimited(a_max, tf_max, 1 - eps)
     # if t_diff_ub > 1e30:
@@ -313,7 +313,7 @@ def segment_matrix_diffusion(trans_prob, matrix_porosity, matrix_diffusivity,
 
     """
 
-    a = (matrix_porosity * np.sqrt(matrix_diffusivity)) / b
+    a = (np.sqrt(matrix_porosity*matrix_diffusivity)) / b
 
     segment_time = segment_length / velocity
     prob_min = min(trans_prob['cdf'])
@@ -514,6 +514,6 @@ def unlimited_matrix_diffusion(self, G):
     """
 
     b = G.edges[self.curr_node, self.next_node]['b']
-    a_nondim = self.matrix_porosity * np.sqrt(self.matrix_diffusivity) / b
+    a_nondim =  np.sqrt(self.matrix_porosity * self.matrix_diffusivity) / b
     xi = np.random.uniform(size=1, low=0, high=1)[0]
-    self.delta_t_md = ((a_nondim * self.delta_t / special.erfcinv(xi))**2)
+    self.delta_t_md = (a_nondim * self.delta_t / special.erfcinv(xi))**2
