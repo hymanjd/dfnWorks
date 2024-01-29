@@ -52,6 +52,5 @@ DFN.print_domain_parameters()
 
 # define_paths()
 DFN.create_network()
-DFN.mesh_network()
-DFN.dfn_flow()
-DFN.dfn_trans()
+DFN.mesh_network(uniform_mesh=True)
+DFN.mesh_dfm()
