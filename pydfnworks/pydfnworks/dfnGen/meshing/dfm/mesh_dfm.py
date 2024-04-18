@@ -12,7 +12,7 @@ import glob
 
 # pydfnworks Modules
 from pydfnworks.dfnGen.meshing.mesh_dfn import mesh_dfn_helper as mh
-from pydfnworks.dfnGen.meshing.dfm.hex_mesh_dfm import hex_mesh_driver 
+from pydfnworks.dfnGen.meshing.dfm.hex_mesh_dfm import create_hex_dfm 
 
 
 def setup_mesh_dfm_directory(jobname, dirname):
@@ -53,6 +53,7 @@ def setup_mesh_dfm_directory(jobname, dirname):
         sys.exit(1)
 
     print("--> Setting up DFM meshing directory complete")
+
 
 
 def cleanup_mesh_dfm_directory():
@@ -117,10 +118,7 @@ def cleanup_mesh_dfm_directory():
 
     print("--> Cleaning up working directory: Complete")
 
-
-
-
-def mesh_dfm(self, mesh_type = "hex", dirname = "dfm_mesh", allowed_percentage = 1, psets = False, cleanup = True, l = None):
+def mesh_dfm(self, mesh_type = "hex",  dirname = "dfm_mesh", allowed_percentage = 1, psets = False, cleanup = True, l = None):
     """" Creates a conforming mesh of a DFN using a uniform background tetrahedron mesh. The DFN must be meshed using a uniform triangular mesh. (DFN.mesh_network(uniform_mesh = True))
 
     Parameters

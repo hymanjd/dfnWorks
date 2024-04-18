@@ -1,6 +1,4 @@
 
-
-
 def dfm_fracture_facets(num_frac):
     """ This function creates the dfm_extract_fracture_facets.mlgi lagrit script.
 

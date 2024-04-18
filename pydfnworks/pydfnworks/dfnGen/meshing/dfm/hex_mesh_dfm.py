@@ -498,7 +498,7 @@ cmo/setatt / mo_dfm / front / 1,0,0 / 0
 cmo/setatt / mo_dfm / front /pset,get,pfront / 1
 
 dump / dfm_tet_w_psets.inp / mo_dfm
-dump / exo / dfm_tet_mesh_w_fsets.exo / mo_dfm / psets / / &
+dump / exo / dfm_tet_mesh_w_p_f_sets.exo / mo_dfm / psets / / &
      facesets &
 """
         lagrit_script += floop 
@@ -515,13 +515,18 @@ dump / exo / dfm_tet_mesh_w_fsets.exo / mo_dfm / / / &
 finish
 """
 
-    with open('dfm_hex_mesh_fracture_driver.lgi', 'w') as fp:
+    with open('dfm_mesh_fracture_driver.lgi', 'w') as fp:
         fp.write(lagrit_script)
         fp.flush()
 
-    print("Creating dfm_hex_mesh_fracture_driver.lgi file: Complete\n")
+    print("Creating dfm_mesh_fracture_driver.lgi file: Complete\n")
 
-    return 'dfm_hex_mesh_fracture_driver.lgi'
+    
+    with open('dfm_mesh_fracture_driver.lgi', 'w') as fp:
+        fp.write(lagrit_script)
+        fp.flush()
+
+    print("Creating dfm_mesh_fracture_driver.lgi file: Complete\n")
 
 def dfm_box(box_domain):    
     """ This function creates the dfm_box_dimensions.mlgi lagrit script.
@@ -591,7 +596,7 @@ finish
         fp.flush()
     print("Creating dfm_box_dimensions.mlgi file: Complete\n")
 
-def create_dfm(lagrit_script):
+def create_dfm():
     """ This function executes the lagrit scripts. 
     
     Parameters
@@ -609,7 +614,7 @@ def create_dfm(lagrit_script):
     """
     # Run LaGriT
     mh.run_lagrit_script(
-        lagrit_script,
+        "dfm_mesh_fracture_driver.lgi",
         quiet=False)
 
 def check_dfm_mesh(allowed_percentage):
@@ -662,11 +667,11 @@ def check_dfm_mesh(allowed_percentage):
 def create_hex_dfm(self, allowed_percentage, psets):
 
     box_domain, num_points_x, num_points_y, num_points_z  = create_domain(self.domain, self.h)
-    lagrit_driver_script = hex_dfm_driver(box_domain, num_points_x, num_points_y, num_points_z , self.num_frac, self.h, psets)
+    hex_dfm_driver(box_domain, num_points_x, num_points_y, num_points_z , self.num_frac, self.h, psets)
     dfm_box(box_domain)    
     dfm_build()
     dfm_fracture_facets(self.num_frac)
     dfm_facets()
     dfm_diagnostics(self.h)
-    create_dfm(lagrit_driver_script)
+    create_dfm()
     check_dfm_mesh(allowed_percentage)

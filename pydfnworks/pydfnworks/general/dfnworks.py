@@ -41,7 +41,7 @@ class DFNWORKS():
     from pydfnworks.general.legal import legal
 
     from pydfnworks.general.images import failure, success
-    from pydfnworks.general.general_functions import dump_time, print_run_time, print_parameters, print_log, go_home, to_pickle, from_pickle 
+    from pydfnworks.general.general_functions import dump_time, print_run_time, print_parameters, print_log, go_home, to_pickle, from_pickle, print_error, print_warning 
 
     # dfnGen functions
     import pydfnworks.dfnGen
@@ -83,7 +83,9 @@ class DFNWORKS():
     from pydfnworks.dfnGen.meshing.mapdfn_ecpm.mapdfn_tag_cells import mapdfn_tag_cells
     from pydfnworks.dfnGen.meshing.mapdfn_ecpm.mapdfn_upscale import mapdfn_upscale
 
+    # DFM Meshing 
     from pydfnworks.dfnGen.meshing.dfm.mesh_dfm import mesh_dfm
+    from pydfnworks.dfnGen.meshing.dfm.hex_mesh_dfm import create_hex_dfm
 
     # dfnFlow
     import pydfnworks.dfnFlow
