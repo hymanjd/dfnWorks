@@ -7,7 +7,7 @@ import numpy as np
 
 # pydfnworks Modules
 from pydfnworks.dfnGen.meshing.mesh_dfn import mesh_dfn_helper as mh
-from pydfnworks.dfnGen.meshing.dfm.mesh_dfm_lagrit_scripts import dfm_fracture_facets,  dfm_facets, dfm_diagnostics
+from pydfnworks.dfnGen.meshing.dfm.mesh_dfm_lagrit_scripts import dfm_fracture_facets,  dfm_facets, dfm_diagnostics, check_dfm_mesh
 
 def octree_dfm_driver(num_fracs, h):
     """ This function creates the main lagrit driver script, which calls the other lagrit scripts.
@@ -197,22 +197,54 @@ dump / exo / dfm_tet_mesh_w_fsets.exo / mo_dfm / / / &
 finish
 """
 
-    with open('dfm_mesh_fracture_driver.lgi', 'w') as fp:
+    with open('dfm_octree_mesh_fracture_driver.lgi', 'w') as fp:
         fp.write(lagrit_script)
         fp.flush()
 
-    print("Creating dfm_mesh_fracture_driver.lgi file: Complete\n")
+    print("Creating dfm_octree_mesh_fracture_driver.lgi file: Complete\n")
 
+def create_dfm():
+    """ This function executes the lagrit scripts. 
+    
+    Parameters
+    ----------
+        None    
 
-def create_octree_dfm(self, l):
+    Returns
+    -------
+        None
+    
+    Notes
+    -----
+        None
+ 
+    """
+    # Run LaGriT
+    mh.run_lagrit_script(
+        "dfm_octree_mesh_fracture_driver.lgi",
+        quiet=False)
+    
+def create_octree_dfm(self, l, allowed_percentage):
 
     # estimate the number of orl needed to get close to the fracture meshing size
-    orl = np.ceil(l/(0.5*self.h)) 
+    orl = max((int)(np.ceil((0.5*self.h))/l),1)
+    orl = 5
     print(f'-> Requesting {orl} refinement levels in the octree')
     if orl > 8:
         self.print_error('Too many refinement levels requested in octree_dfm. Provide smaller l value.')
-    self.map_to_continuum(l=l, orl=orl)
+    if not os.path.isfile(f'{self.jobname}/reduced_mesh.inp'):
+        cwd = os.getcwd()
+        os.chdir(self.jobname)
+        print(cwd)
+        self.visual_mode = True 
+        self.mesh_network()
+        os.chdir(cwd)
+
+    self.map_to_continuum(l=l, orl=orl, path = self.jobname, dir_name = "octree_dfm", upscale = False)
     dfm_fracture_facets(self.num_frac)
     dfm_facets()
     dfm_diagnostics(self.h)
-
+    octree_dfm_driver(self.num_frac, self.h)
+    os.symlink(self.jobname + os.sep + "full_mesh.inp", "full_mesh.inp")
+    create_dfm() 
+    # check_dfm_mesh(allowed_percentage)

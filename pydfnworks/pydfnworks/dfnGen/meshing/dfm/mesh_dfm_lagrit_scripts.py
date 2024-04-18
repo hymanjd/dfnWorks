@@ -1,4 +1,5 @@
-
+import os 
+import sys
 def dfm_fracture_facets(num_frac):
     """ This function creates the dfm_extract_fracture_facets.mlgi lagrit script.
 
@@ -239,3 +240,49 @@ finish
 
 
 
+def check_dfm_mesh(allowed_percentage):
+    """ Checks how many elements of the DFN meshing are missinf from the DFM. If the percentage missing is larger than the allowed percentage, then the program exists.
+
+    Parameters
+    ----------------
+        allowed_percentage : float
+            Percentage of the mesh allowed to be missing and still continue
+
+    Returns
+    ----------
+        None
+
+    Notes
+    ----------
+        None
+    
+    """
+
+    print("--> Checking for missing elements")
+    if os.path.isfile('missed_cells_full_mesh.inp'):
+        print("--> Missing elements have been found.")
+        print(f"--> Missing elements are in the file 'missed_cells_full_mesh.inp' if you want to see them.")
+        # get number of missed elements in the 
+        with open('missed_cells_full_mesh.inp', 'r') as fp:
+            line = fp.readline().split()
+            missing_num_elems = int(line[1])
+        # get the total number of elements
+
+        with open('full_mesh.inp', 'r') as fp:
+            line = fp.readline().split()
+            total_num_elems = int(line[1])
+        # Compute percentage and compare
+        missing_percent = 100*(missing_num_elems/total_num_elems)
+        print(f"--> Out of {total_num_elems} elements in the DFN there are {missing_num_elems} missing from the DFM.")
+        print(f"--> That's {missing_percent:0.2f} percent of the mesh.")
+
+        if  missing_percent > allowed_percentage:
+            error = f"*** Error. Missing percent of mesh is larger than tolerance {allowed_percentage} ***\n*** Exitting ***\n "
+            sys.stderr.write(error)
+            sys.exit(1)
+        else:
+            print("--> Doesn't seem to bad. Keep Calm and Carry on.")
+
+    # if the file 'missed_cells_full_mesh.inp' does not exists, this means no elements were missed.  
+    else:
+        print("--> No missinng elements found. ")

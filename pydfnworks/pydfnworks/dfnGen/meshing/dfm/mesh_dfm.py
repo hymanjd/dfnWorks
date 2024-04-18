@@ -12,7 +12,6 @@ import glob
 
 # pydfnworks Modules
 from pydfnworks.dfnGen.meshing.mesh_dfn import mesh_dfn_helper as mh
-from pydfnworks.dfnGen.meshing.dfm.hex_mesh_dfm import create_hex_dfm 
 
 
 def setup_mesh_dfm_directory(jobname, dirname):
@@ -88,8 +87,11 @@ def cleanup_mesh_dfm_directory():
     extra_files = ['dfm_mesh_fracture_driver.lgi.log','dfm_mesh_fracture_driver.lgi.out',
                    'tmp_interpolate.inp']
     for filename in extra_files:
-        shutil.copyfile(filename, lagrit_script_dir + os.sep + filename)
-        os.remove(filename)
+        try:
+            shutil.copyfile(filename, lagrit_script_dir + os.sep + filename)
+            os.remove(filename)
+        except:
+            pass
 
     table_dir = "tables"
     try:
@@ -117,6 +119,7 @@ def cleanup_mesh_dfm_directory():
 
 
     print("--> Cleaning up working directory: Complete")
+
 
 def mesh_dfm(self, mesh_type = "hex",  dirname = "dfm_mesh", allowed_percentage = 1, psets = False, cleanup = True, l = None):
     """" Creates a conforming mesh of a DFN using a uniform background tetrahedron mesh. The DFN must be meshed using a uniform triangular mesh. (DFN.mesh_network(uniform_mesh = True))
@@ -146,12 +149,12 @@ def mesh_dfm(self, mesh_type = "hex",  dirname = "dfm_mesh", allowed_percentage 
     print("Creating conforming DFM mesh using LaGriT : Starting")
     print('=' * 80)
 
-    setup_mesh_dfm_directory(self.jobname, dirname)
 
     if mesh_type == "hex":
+        setup_mesh_dfm_directory(self.jobname, dirname)
         self.create_hex_dfm(allowed_percentage, psets)
     elif mesh_type == "octree":
-        self.create_octree_dfm(l)
+        self.create_octree_dfm(l, allowed_percentage)
     elif mesh_type == "poisson":
         self.create_poisson_dfm()
 
