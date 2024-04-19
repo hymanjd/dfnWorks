@@ -227,9 +227,9 @@ def create_dfm():
 def create_octree_dfm(self, l, allowed_percentage):
 
     # estimate the number of orl needed to get close to the fracture meshing size
-    orl = max((int)(np.ceil((0.5*self.h))/l),1)
-    orl = 5
+    orl = np.ceil(np.log2(l/self.h)).astype(int)
     print(f'-> Requesting {orl} refinement levels in the octree')
+    orl = (int)(orl)
     if orl > 8:
         self.print_error('Too many refinement levels requested in octree_dfm. Provide smaller l value.')
     if not os.path.isfile(f'{self.jobname}/reduced_mesh.inp'):
