@@ -121,7 +121,8 @@ def cleanup_mesh_dfm_directory():
     print("--> Cleaning up working directory: Complete")
 
 
-def mesh_dfm(self, mesh_type = "hex",  dirname = "dfm_mesh", allowed_percentage = 1, psets = False, cleanup = True, l = None):
+def mesh_dfm(self, mesh_type = "hex",  dirname = "dfm_mesh", allowed_percentage = 1, psets = False, cleanup = True, 
+             l = None, min_dist = 0.5, max_dist = 10, max_resolution_factor = 10, uniform_mesh = False):
     """" Creates a conforming mesh of a DFN using a uniform background tetrahedron mesh. The DFN must be meshed using a uniform triangular mesh. (DFN.mesh_network(uniform_mesh = True))
 
     Parameters
@@ -154,12 +155,13 @@ def mesh_dfm(self, mesh_type = "hex",  dirname = "dfm_mesh", allowed_percentage 
         setup_mesh_dfm_directory(self.jobname, dirname)
         self.create_hex_dfm(allowed_percentage, psets)
     elif mesh_type == "octree":
-        self.create_octree_dfm(l, allowed_percentage)
+        self.create_octree_dfm(l, allowed_percentage, psets)
     elif mesh_type == "poisson":
-        self.create_poisson_dfm()
+        setup_mesh_dfm_directory(self.jobname, dirname)
+        self.create_poisson_dfm(allowed_percentage, psets, min_dist, max_dist, max_resolution_factor, uniform_mesh)
 
-    if cleanup:
-        cleanup_mesh_dfm_directory()
+    #if cleanup:
+    #    cleanup_mesh_dfm_directory()
 
 
     print('=' * 80)

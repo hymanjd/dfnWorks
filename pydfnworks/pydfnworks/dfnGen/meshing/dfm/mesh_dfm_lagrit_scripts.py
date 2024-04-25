@@ -62,7 +62,7 @@ finish
         fp.flush()
     print("Creating dfm_extract_fracture_facets.mlgi file: Complete\n")
 
-def dfm_facets():
+def dfm_facets(h):
     """ This function creates the dfm_extract_facets.mlgi lagrit script.
 
     Parameters
@@ -109,7 +109,7 @@ cmo / select / MO_ONE_FRAC_EXTRACT
 eltset / edel / idelem0 / eq / 0
 rmpoint / element / eltset get edel
 rmpoint / compress
-pset / pdel / attribute / dfield_sign / 1 0 0 / gt / 1.e-9
+pset / pdel / attribute / dfield_sign / 1 0 0 / gt / 1e-9
 rmpoint / pset get pdel / inclusive
 rmpoint / compress
 #

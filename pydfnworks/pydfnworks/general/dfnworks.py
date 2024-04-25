@@ -86,6 +86,8 @@ class DFNWORKS():
     # DFM Meshing 
     from pydfnworks.dfnGen.meshing.dfm.mesh_dfm import mesh_dfm
     from pydfnworks.dfnGen.meshing.dfm.hex_mesh_dfm import create_hex_dfm
+    from pydfnworks.dfnGen.meshing.dfm.octree_mesh_dfm import create_octree_dfm
+    from pydfnworks.dfnGen.meshing.dfm.poisson_mesh_dfm import create_poisson_dfm
 
     # dfnFlow
     import pydfnworks.dfnFlow

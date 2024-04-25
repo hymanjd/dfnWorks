@@ -16,7 +16,7 @@ import multiprocessing as mp
 import pickle
 
 
-def map_to_continuum(self, l, orl, path="./", dir_name="octree"):
+def map_to_continuum(self, l, orl, path="./", dir_name="octree", upscale = True):
     """ This function generates an octree-refined continuum mesh using the
     reduced_mesh.inp as input.  To generate the reduced_mesh.inp, one must 
     turn visualization mode on in the DFN input card.
@@ -25,7 +25,7 @@ def map_to_continuum(self, l, orl, path="./", dir_name="octree"):
     ----------
         self : object
             DFN Class
-        l : float
+        l :i
             Size (m) of level-0 mesh element in the continuum mesh
         orl : int
             Number of total refinement levels in the octree
@@ -51,8 +51,7 @@ def map_to_continuum(self, l, orl, path="./", dir_name="octree"):
     print('=' * 80)
 
     if type(orl) is not int or orl < 1:
-        error = "ERROR: orl must be positive integer. Exiting"
-        sys.stderr.write(error)
+        self.print_error('orl must be positive integer.')
         sys.exit(1)
 
     # Extent of domain
@@ -69,9 +68,7 @@ def map_to_continuum(self, l, orl, path="./", dir_name="octree"):
     nz = self.domain['z'] / l + 1
 
     if nx * ny * nz > 1e8:
-        error = "Error: Number of elements too large (> 1e8). Exiting"
-        sys.stderr.write(error)
-        sys.exit(1)
+        self.print_error("Number of elements too large for UDFM (> 1e8). Exiting")
 
     print("\nCreating *.lgi files for octree mesh\n")
     try:
@@ -101,10 +98,11 @@ def map_to_continuum(self, l, orl, path="./", dir_name="octree"):
     lagrit_intersect(dir_name)
     lagrit_hex_to_tet(dir_name)
     lagrit_remove(dir_name)
-    lagrit_run(self, self.num_frac, path, dir_name)
-    lagrit_strip(self.num_frac)
-    driver_parallel(self, self.num_frac)
-    build_dict(self, self.num_frac, delete_files=True)
+    lagrit_run(self, self.num_frac, path, dir_name, upscale)
+    if upscale:
+        lagrit_strip(self.num_frac)
+        driver_parallel(self, self.num_frac)
+        build_dict(self, self.num_frac, delete_files=True)
     dir_cleanup()
     ## set object variable name
     self.inp_file = "octree_dfn.inp" 
@@ -689,7 +687,7 @@ finish
     print("Creating remove_cells.mlgi file: Complete\n")
 
 
-def lagrit_run(self, num_poly, path, dir_name):
+def lagrit_run(self, num_poly, path, dir_name, upscale):
     """ This function executes the lagrit scripts. 
     
     Parameters
@@ -711,18 +709,16 @@ def lagrit_run(self, num_poly, path, dir_name):
     # Run LaGriT
     os.chdir(dir_name)
 
-    if os.path.isfile(path + "reduced_mesh.inp"):
-        os.symlink(path + "reduced_mesh.inp", "reduced_mesh.inp")
-    elif os.path.isfile(path + "../" + "reduced_mesh.inp"):
-        os.symlink(path + "../" + "reduced_mesh.inp", "reduced_mesh.inp")
+    print(f"--> Making symbolic link for reduced_mesh.inp. Source {path}")
+    if os.path.isfile(path + os.sep + "reduced_mesh.inp"):
+        os.symlink(path + os.sep +  "reduced_mesh.inp", "reduced_mesh.inp")
     else:
-        error = "ERROR!!! Reduced Mesh not found. Please run mesh_dfn with visual_mode=True.\nExiting"
-        sys.stderr.write(error)
-        sys.exit(1)
+        self.print_error(f'Reduced Mesh not found in {path}. Please run mesh_dfn with visual_mode=True')
 
     mh.run_lagrit_script("driver_octree_start.lgi")
 
-    driver_interpolate_parallel(self, num_poly)
+    if upscale:
+        driver_interpolate_parallel(self, num_poly)
 
 
 def lagrit_strip(num_poly):

@@ -13,6 +13,7 @@ import shutil
 # pydfnworks Modules
 from pydfnworks.dfnGen.meshing.mesh_dfn import mesh_dfn_helper as mh
 from pydfnworks.dfnGen.meshing.dfm.mesh_dfm_lagrit_scripts import dfm_fracture_facets,  dfm_facets, dfm_diagnostics, check_dfm_mesh
+from pydfnworks.dfnGen.meshing.dfm.dfm_helper_functions import dfm_get_box_domain 
 
 def create_domain(domain, h):
     """ Gather domain information. 
@@ -37,18 +38,7 @@ def create_domain(domain, h):
         Assuming that 
 
     """
-    box_domain = {"x0": None, "x0": None,
-                  "y0": None, "y1": None, 
-                  "z0": None, "z1": None 
-                  }
-
-    # Extent of domain
-    box_domain['x0'] = - 0.5*domain['x']
-    box_domain['x1'] = 0.5*domain['x'] 
-    box_domain['y0'] = - 0.5*domain['y'] 
-    box_domain['y1'] = 0.5*domain['y'] 
-    box_domain['z0'] = - 0.5*domain['z'] 
-    box_domain['z1'] = 0.5*domain['z'] 
+    box_domain =  dfm_get_box_domain(domain)
 
     # Mesh size in matrix
     l = h/2
@@ -522,12 +512,6 @@ finish
     print("Creating dfm_mesh_fracture_driver.lgi file: Complete\n")
 
     
-    with open('dfm_mesh_fracture_driver.lgi', 'w') as fp:
-        fp.write(lagrit_script)
-        fp.flush()
-
-    print("Creating dfm_mesh_fracture_driver.lgi file: Complete\n")
-
 def dfm_box(box_domain):    
     """ This function creates the dfm_box_dimensions.mlgi lagrit script.
 
