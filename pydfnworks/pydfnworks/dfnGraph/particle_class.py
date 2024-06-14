@@ -113,7 +113,7 @@ class Particle():
             self.frac_seq.append(self.frac)
 
             self.delta_t = G.edges[self.curr_node, self.next_node]['time']
-            self.delat_l = G.edges[self.curr_node, self.next_node]['length']
+            self.delta_l = G.edges[self.curr_node, self.next_node]['length']
             self.delta_beta = (
                 2.0 * G.edges[self.curr_node, self.next_node]['length']) / (
                     G.edges[self.curr_node, self.next_node]['b'] *
@@ -184,7 +184,7 @@ class Particle():
         self.advect_time += self.delta_t
         self.matrix_diffusion_time += self.delta_t_md
         self.total_time += self.delta_t + self.delta_t_md
-        self.length += self.delat_l
+        self.length += self.delta_l
         self.beta += self.delta_beta
         self.frac_seq.append(self.frac)
         self.curr_node = self.next_node
