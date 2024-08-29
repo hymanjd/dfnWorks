@@ -425,8 +425,8 @@ def compute_mesh_slope_and_intercept(h, min_dist, max_dist,
         slope = h * (max_resolution_factor - 0.5) / (max_dist - min_dist)
         if slope > 1:
             hf.print_warning(
-                f"Meshing slope too large. {slope} > 1. Resetting to 0.9")
-            slope = 0.9
+                f"Meshing slope too large. {slope} > 1. Resetting to 0.6")
+            slope = 0.6
 
         intercept = h * (0.5 - slope * min_dist)
 

@@ -2,7 +2,7 @@
 
 def dfm_get_box_domain(domain):
 
-    box_domain = {"x0": None, "x0": None,
+    box_domain = {"x0": None, "x1": None,
                   "y0": None, "y1": None, 
                   "z0": None, "z1": None 
                   }
