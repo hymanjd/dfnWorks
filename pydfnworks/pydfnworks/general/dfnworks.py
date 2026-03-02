@@ -136,6 +136,9 @@ class DFNWORKS():
     from pydfnworks.dfnGraph.graph_flow import run_graph_flow, compute_dQ
     from pydfnworks.dfnGraph.graph_transport import run_graph_transport
 
+    ## Graph to PFLOTRAN 
+    from pydfnworks.dfnGraph.graph_to_pflotran.graph_to_pflotran import dump_uge 
+
     def __init__(self,
                  jobname=None,
                  ncpu=4,
