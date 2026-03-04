@@ -18,7 +18,8 @@ def make_connection_data_frame(self, G):
                 G.nodes[u]['area'] = G.nodes[u]['length'] * b_hmean
                 conns.append((frac1, frac2, x, y, z, G.nodes[u]['area']))
     conns_df = pd.DataFrame(conns, columns=["i", "j", "xc", "yc", "zc", "area"])
-    return conns_df        
+    #conns_df = conns_df.sort_values(by=["i", "j"]).reset_index(drop=True)
+    return conns_df       
 
 def make_cell_data_frame(self, G):
     self.volume = self.surface_area * self.aperture

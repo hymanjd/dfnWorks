@@ -1,7 +1,9 @@
 from .graph_uge import make_connection_data_frame, make_cell_data_frame, convert_graph_to_data_frames
 from .compute_graph_to_pflotran_geometries import compute_graph_to_pflotran_geometries
 from .write_graph_uge import write_graph_uge
-from .graph_to_pflotran import driver_for_graph_files_for_pflotran
+from .graph_to_pflotran import graph_to_pflotran
+from .extract_graph_boundaries_from_dfn import extract_graph_boundaries_from_dfn, write_boundary_ex, write_ex
+from .dump_h5_file_for_graph_perm import dump_h5_file_for_graph_perm
 
 
 

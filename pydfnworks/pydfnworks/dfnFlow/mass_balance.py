@@ -97,17 +97,58 @@ def flow_rate(darcy_vel_file, boundary_file):
     mass_rate = 0.0  #kg/s
     volume_rate = 0.0  #m^3/s
 
-    dat_boundary = np.genfromtxt(boundary_file, skip_header=1)
-    dat = np.genfromtxt(darcy_vel_file)
-    for cell in dat_boundary[:, 0]:
-        if (np.any(dat[:, 0] == int(cell))):
-            ids = np.where(dat[:, 0] == int(cell))[0]
-            for idx in ids:
-                cell_up = int(dat[idx, 0])
-                cell_down = int(dat[idx, 1])
-                mass_flux = dat[idx, 2]  # in m/s , darcy flux, right? m3/m2/s
-                density = dat[idx, 3]  # in kg/m3
-                area = dat[idx, 4]  # in m^2
+    full = False
+    if full:
+
+        dat_boundary = np.genfromtxt(boundary_file, skip_header=1)
+        dat = np.genfromtxt(darcy_vel_file)
+        for cell in dat_boundary[:,0]:
+            if (np.any(dat[:, 0] == int(cell))):
+                ids = np.where(dat[:, 0] == int(cell))[0]
+                for idx in ids:
+                    cell_up = int(dat[idx, 0])
+                    cell_down = int(dat[idx, 1])
+                    mass_flux = dat[idx, 2]  # in m/s , darcy flux, right? m3/m2/s
+                    density = dat[idx, 3]  # in kg/m3
+                    area = dat[idx, 4]  # in m^2
+                    if (cell_up == int(cell)):
+                        mass_rate += mass_flux * area * \
+                        density  # in kg/s
+                        volume_rate += mass_flux * area  #in m3/s
+                    else:
+                        mass_rate = - mass_flux * area * \
+                        density + mass_rate  # in kg/s
+                        volume_rate = -mass_flux * area + volume_rate  #in m3/s
+                    #print cell_up, cell_down, mass_flux, density, area, mass_rate, volume_rate
+            if (np.any(dat[:, 1] == int(cell))):
+                ids = np.where(dat[:, 1] == int(cell))[0]
+                for idx in ids:
+                    cell_up = int(dat[idx, 0])
+                    cell_down = int(dat[idx, 1])
+                    mass_flux = dat[idx, 2]  # in m/s
+                    density = dat[idx, 3]  # in kg/m3
+                    area = dat[idx, 4]  # in m^2
+                    if (cell_up == int(cell)):
+                        mass_rate = mass_flux * area * \
+                        density + mass_rate  # in kg/s
+                        volume_rate = mass_flux * area + volume_rate  #in m3/s
+                    else:
+                        mass_rate = - mass_flux * area * \
+                        density + mass_rate  # in kg/s
+                        volume_rate = -mass_flux * area + volume_rate  #in m3/s
+                    #print cell_up, cell_down, mass_flux, density, area, mass_rate, volume_ratei
+        
+
+    else: 
+        dat_boundary = np.genfromtxt(boundary_file, skip_header=1)[0]
+        dat = np.genfromtxt(darcy_vel_file)
+        for cell in [dat_boundary]:
+            if (np.any(dat[0] == int(cell))):
+                cell_up = int(dat[0])
+                cell_down = int(dat[1])
+                mass_flux = dat[2]  # in m/s , darcy flux, right? m3/m2/s
+                density = dat[3]  # in kg/m3
+                area = dat[4]  # in m^2
                 if (cell_up == int(cell)):
                     mass_rate = mass_flux * area * \
                     density + mass_rate  # in kg/s
@@ -117,14 +158,12 @@ def flow_rate(darcy_vel_file, boundary_file):
                     density + mass_rate  # in kg/s
                     volume_rate = -mass_flux * area + volume_rate  #in m3/s
                 #print cell_up, cell_down, mass_flux, density, area, mass_rate, volume_rate
-        if (np.any(dat[:, 1] == int(cell))):
-            ids = np.where(dat[:, 1] == int(cell))[0]
-            for idx in ids:
-                cell_up = int(dat[idx, 0])
-                cell_down = int(dat[idx, 1])
-                mass_flux = dat[idx, 2]  # in m/s
-                density = dat[idx, 3]  # in kg/m3
-                area = dat[idx, 4]  # in m^2
+            if (np.any(dat[1] == int(cell))):
+                cell_up = int(dat[0])
+                cell_down = int(dat[1])
+                mass_flux = dat[2]  # in m/s
+                density = dat[3]  # in kg/m3
+                area = dat[4]  # in m^2
                 if (cell_up == int(cell)):
                     mass_rate = mass_flux * area * \
                     density + mass_rate  # in kg/s
@@ -133,7 +172,8 @@ def flow_rate(darcy_vel_file, boundary_file):
                     mass_rate = - mass_flux * area * \
                     density + mass_rate  # in kg/s
                     volume_rate = -mass_flux * area + volume_rate  #in m3/s
-                #print cell_up, cell_down, mass_flux, density, area, mass_rate, volume_rate
+                    #print cell_up, cell_down, mass_flux, density, area, mass_rate, volume_rate
+
     return mass_rate, volume_rate
 
 

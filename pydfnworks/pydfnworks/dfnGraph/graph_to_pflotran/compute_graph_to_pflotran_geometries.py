@@ -5,7 +5,7 @@ import pandas as pd
 def compute_graph_to_pflotran_geometries(
     cells_df,
     conns_df,
-    tol_rel=1e-12,
+    tol_rel=1e-6,
 ):
     """
     For each connection i-j with graph node gn:
@@ -79,7 +79,7 @@ def compute_graph_to_pflotran_geometries(
             if is_endpoint and is_colinear:
                 # midpoint
                 p_proj = 0.5 * (Xi + Xj)
-
+                t = 0.0
             else:
                 # Case 3: keep face away from endpoints
                 if t <= eps_t:
@@ -94,13 +94,12 @@ def compute_graph_to_pflotran_geometries(
 
         # epsilon and ahat using area from graph.uge
         area = float(r.area)
-        if lij > 0.0:
-            eps = l3 / lij
-            ahat = eps * area
-        else:
-            eps = 0.0
-            # ahat = 0
-            ahat = area
+        eps = l3 / lij
+        ahat = area /eps
+        # else:
+        #     eps = 0.0
+        #     # ahat = 0
+        #     ahat = area
 
         xp.append(p_proj[0]); yp.append(p_proj[1]); zp.append(p_proj[2])
         ahats.append(ahat)
