@@ -85,10 +85,10 @@ def write_boundary_ex(
 
 
     return pd.concat([
-        pd.DataFrame(rows, columns=["node_id", "x", "y", "z", "area"])
+        pd.DataFrame(rows, columns=["id", "x", "y", "z", "length"])
         .assign(neg_id=neg_id)
         for neg_id, rows in boundary_rows.items()
-    ])
+    ])[["neg_id", "id", "x", "y", "z", "length"]].reset_index(drop=True)
     
 
 def extract_graph_boundaries_from_dfn(area_default, intersection_list_path='./dfnGen_output/intersection_list.dat'):
@@ -96,6 +96,4 @@ def extract_graph_boundaries_from_dfn(area_default, intersection_list_path='./df
         intersection_list_path=intersection_list_path,
         area_default=area_default
     )
-    print(boundaries_df)
-
     return boundaries_df

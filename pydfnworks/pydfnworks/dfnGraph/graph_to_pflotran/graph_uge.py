@@ -1,6 +1,8 @@
 import networkx as nx 
 import pandas as pd 
+import numpy as np
 from scipy.stats import hmean
+
 def make_connection_data_frame(self, G):
     conns = []
     for u in G.intersections:
@@ -19,7 +21,48 @@ def make_connection_data_frame(self, G):
                 conns.append((frac1, frac2, x, y, z, G.nodes[u]['area']))
     conns_df = pd.DataFrame(conns, columns=["i", "j", "xc", "yc", "zc", "area"])
     #conns_df = conns_df.sort_values(by=["i", "j"]).reset_index(drop=True)
-    return conns_df       
+    return conns_df     
+
+
+def add_boundary_nodes_as_conns(self, G, altered_cells_df, conns_df, boundaries_df):
+    boundaries_df_copy = boundaries_df.copy()
+    altered_cells_df_copy = altered_cells_df.copy()
+    conns_df_copy = conns_df.copy()
+    # turn length into area by multiplying by fracture aperture
+    for i in range(1, self.num_frac + 1):
+        if i in boundaries_df_copy['id'].values:  
+            X1 = np.array(altered_cells_df_copy.loc[altered_cells_df_copy['id'] == i, ['x', 'y', 'z']].values[0])
+            # find all boundary rows for this fracture and calculate L for each
+            mask = boundaries_df_copy['id'] == i
+            L_values = boundaries_df_copy.loc[mask, ['x', 'y', 'z']].apply(
+                lambda row: np.linalg.norm(np.array(row) - X1), axis=1
+            )
+            boundaries_df_copy.loc[mask, "length"] *= G.nodes[i]['aperture']
+            # boundaries_df_copy.rename(columns={'length': 'area'})
+
+            #P(t) = X1 + t * (X0 - X1) - currently 0.5 is for the halfway point
+            total_L = L_values.sum() #unused
+            weights = L_values / total_L #unused
+
+            midpoints = boundaries_df_copy.loc[mask, ['x', 'y', 'z']].apply(
+                lambda row: X1 + 0.5 * (np.array(row) - X1), axis=1, result_type='expand'
+            )
+            midpoints.columns = ['x', 'y', 'z']
+            boundaries_df_copy.loc[mask, 'x'] = midpoints['x'].values
+            boundaries_df_copy.loc[mask, 'y'] = midpoints['y'].values
+            boundaries_df_copy.loc[mask, 'z'] = midpoints['z'].values
+    # match neg_ids to get the altered_cells id
+    merged = boundaries_df_copy.merge(altered_cells_df_copy[['id', 'neg_id']], on='neg_id')
+    # build and concat to conns_df
+    conns_df_updated = pd.concat([
+        conns_df_copy,
+        merged.rename(columns={'id_y': 'i', 'id_x': 'j', 'x': 'xc', 'y': 'yc', 'z': 'zc', 'length': 'area'})[['i', 'j', 'xc', 'yc', 'zc', 'area']]
+    ]).reset_index(drop=True)
+    print(f'Total area: {conns_df_updated["area"].sum():.12f}')
+    return conns_df_updated
+
+
+
 
 def make_cell_data_frame(self, G):
     self.volume = self.surface_area * self.aperture
@@ -40,9 +83,46 @@ def make_cell_data_frame(self, G):
     cells_df = pd.DataFrame(cells, columns=["id", "x", "y", "z", "volume"])
     return cells_df
 
-def convert_graph_to_data_frames(self, G):
+def add_boundary_nodes_as_cells(self, G, cells_df, boundaries_df, omega = 0.05):
+    boundaries_df_copy = boundaries_df.copy()
+    # turn length into area by multiplying by fracture aperture
+    for i in range(1, self.num_frac + 1):
+        if i in boundaries_df['id'].values:
+            # # calculate scaling factor (omega) for dividing cell volume based on coordinate of cell center and boundary
+            X1 = np.array(cells_df.loc[cells_df['id'] == i, ['x', 'y', 'z']].values[0])
+        
+            # find all boundary rows for this fracture and calculate L for each
+            mask = boundaries_df_copy['id'] == i
+            L_values = boundaries_df_copy.loc[mask, ['x', 'y', 'z']].apply(
+                lambda row: np.linalg.norm(np.array(row) - X1), axis=1
+            )
+            volume_check_og = cells_df.loc[cells_df['id'] == i, 'volume'].values[0]
+            print(volume_check_og)
+            volume_partition = 1 / (len(L_values) + 1)
+            
+            # # change volumes to share and preserve total volume
+            cells_df.loc[cells_df['id'] == i, 'volume'] *= (1 - volume_partition)
+            
+            # each boundary gets an equal share of the removed volume
+            boundaries_df_copy.loc[mask, 'length'] = volume_partition * float(volume_check_og) / len(L_values)
+
+            # check: cell + all boundaries should equal original
+            new_total = cells_df.loc[cells_df['id'] == i, 'volume'].values[0] + boundaries_df_copy.loc[mask, 'length'].sum()
+            print(f'Volume difference for {i} = {volume_check_og - new_total:.6f}')
+
+    altered_cells_df = pd.concat([
+        cells_df,
+        boundaries_df_copy.rename(columns={'length': 'volume'})
+    ]).reset_index(drop=True)
+    altered_cells_df['id'] = altered_cells_df.index + 1
+    return altered_cells_df
+
+def convert_graph_to_data_frames(self, G, boundaries_df):
 
     cells_df = self.make_cell_data_frame(G)
     conns_df = self.make_connection_data_frame(G)
-
-    return cells_df, conns_df
+    altered_cells_df = self.add_boundary_nodes_as_cells(G, cells_df, boundaries_df)
+    conns_df_updated = self.add_boundary_nodes_as_conns(G, altered_cells_df, conns_df, boundaries_df)
+    # return cells_df, conns_df
+    # return cells and connections after updating for nodes and connections at the boundaries based on intersection_list.dat
+    return altered_cells_df, conns_df_updated

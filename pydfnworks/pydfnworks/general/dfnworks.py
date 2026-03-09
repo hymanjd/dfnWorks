@@ -137,7 +137,7 @@ class DFNWORKS():
     from pydfnworks.dfnGraph.graph_transport import run_graph_transport
 
     ## Graph to PFLOTRAN 
-    from pydfnworks.dfnGraph.graph_to_pflotran.graph_uge import make_connection_data_frame, make_cell_data_frame, convert_graph_to_data_frames
+    from pydfnworks.dfnGraph.graph_to_pflotran.graph_uge import make_connection_data_frame, make_cell_data_frame, convert_graph_to_data_frames, add_boundary_nodes_as_cells, add_boundary_nodes_as_conns
     from pydfnworks.dfnGraph.graph_to_pflotran.compute_graph_to_pflotran_geometries import compute_graph_to_pflotran_geometries
     from pydfnworks.dfnGraph.graph_to_pflotran.write_graph_uge import write_graph_uge
     from pydfnworks.dfnGraph.graph_to_pflotran.graph_to_pflotran import graph_to_pflotran
