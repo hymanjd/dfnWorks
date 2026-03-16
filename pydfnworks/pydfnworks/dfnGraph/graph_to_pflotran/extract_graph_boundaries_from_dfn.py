@@ -1,16 +1,7 @@
 import numpy as np
 import pandas as pd
 
-# Write one .ex file per boundary
-def write_ex(filename: str, rows: list):
-    with open(filename, "w") as g:
-        g.write(f"CONNECTIONS\t{len(rows)}\n")
-        for node_i, x, y, z, length in rows:
-            g.write(
-                f"{int(node_i)}\t{x:.16e}\t{y:.16e}\t{z:.16e}\t{length:.16e}\n"
-            )
-
-def write_boundary_ex(
+def parse_boundary_ex(
     intersection_list_path,
     area_default,
 ):
@@ -43,7 +34,7 @@ def write_boundary_ex(
         "back_s":  -6,
     }
 
-    # Build map dict: neg_id -> list of (node_i, x, y, z, area)
+    # Build map dict: neg_id -> list of (node_i, x, y, z, length)
     boundary_rows: dict[int, list] = {neg_id: [] for neg_id in BOUNDARY_NAME_TO_NEG_ID.values()}
 
     with open(intersection_list_path, "r", errors="replace") as f:
@@ -77,22 +68,15 @@ def write_boundary_ex(
             if neg_id in boundary_rows:
                 boundary_rows[neg_id].append((node_i, x, y, z, length)) 
 
-    for name, neg_id in BOUNDARY_NAME_TO_NEG_ID.items():
-        filename = f"boundary_{name}.ex"
-        rows = boundary_rows[neg_id]
-        write_ex(filename, rows)
-        print(f"Wrote {len(rows):>6} rows -> {filename}")
-
 
     return pd.concat([
         pd.DataFrame(rows, columns=["id", "x", "y", "z", "length"])
         .assign(neg_id=neg_id)
         for neg_id, rows in boundary_rows.items()
     ])[["neg_id", "id", "x", "y", "z", "length"]].reset_index(drop=True)
-    
 
 def extract_graph_boundaries_from_dfn(area_default, intersection_list_path='./dfnGen_output/intersection_list.dat'):
-    boundaries_df = write_boundary_ex(
+    boundaries_df = parse_boundary_ex(
         intersection_list_path=intersection_list_path,
         area_default=area_default
     )

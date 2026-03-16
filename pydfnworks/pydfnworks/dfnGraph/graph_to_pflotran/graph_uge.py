@@ -83,38 +83,70 @@ def make_cell_data_frame(self, G):
     cells_df = pd.DataFrame(cells, columns=["id", "x", "y", "z", "volume"])
     return cells_df
 
-def add_boundary_nodes_as_cells(self, G, cells_df, boundaries_df, omega = 0.05):
+def add_boundary_nodes_as_cells(self, G, cells_df, boundaries_df, omega=0.01):
+    import numpy as np
+    import pandas as pd
+
     boundaries_df_copy = boundaries_df.copy()
+    cells_df_copy = cells_df.copy()
+    
+    # Preserve metadata on original cells but make all boundarys nan
+    cells_df_copy["row_type"] = "internal"
+    cells_df_copy["parent_cell_id"] = np.nan
+    cells_df_copy["boundary_index"] = np.nan
+    cells_df_copy["orig_length"] = np.nan
+
+    # Preserve metadata on boundary rows before modifying length 
+    boundaries_df_copy["row_type"] = "boundary"
+    boundaries_df_copy["parent_cell_id"] = boundaries_df_copy["id"]
+    boundaries_df_copy["boundary_index"] = boundaries_df_copy["neg_id"]
+    boundaries_df_copy["orig_length"] = boundaries_df_copy["length"]
+
+    move_fraction = omega
     # turn length into area by multiplying by fracture aperture
     for i in range(1, self.num_frac + 1):
-        if i in boundaries_df['id'].values:
+        if i in boundaries_df_copy['id'].values:
             # # calculate scaling factor (omega) for dividing cell volume based on coordinate of cell center and boundary
-            X1 = np.array(cells_df.loc[cells_df['id'] == i, ['x', 'y', 'z']].values[0])
-        
+            X1 = np.array(
+                cells_df_copy.loc[cells_df_copy['id'] == i, ['x', 'y', 'z']].values[0],
+                dtype=float
+            )
             # find all boundary rows for this fracture and calculate L for each
             mask = boundaries_df_copy['id'] == i
-            L_values = boundaries_df_copy.loc[mask, ['x', 'y', 'z']].apply(
-                lambda row: np.linalg.norm(np.array(row) - X1), axis=1
-            )
-            volume_check_og = cells_df.loc[cells_df['id'] == i, 'volume'].values[0]
+            boundary_xyz = boundaries_df_copy.loc[mask, ['x', 'y', 'z']].to_numpy(dtype=float)
+
+            L_values = np.linalg.norm(boundary_xyz - X1, axis=1)
+            volume_check_og = cells_df_copy.loc[cells_df_copy['id'] == i, 'volume'].values[0]
             print(volume_check_og)
+            # change volumes to share and preserve total volume
             volume_partition = 1 / (len(L_values) + 1)
-            
-            # # change volumes to share and preserve total volume
-            cells_df.loc[cells_df['id'] == i, 'volume'] *= (1 - volume_partition)
-            
+
+            cells_df_copy.loc[cells_df_copy['id'] == i, 'volume'] *= (1 - volume_partition)
             # each boundary gets an equal share of the removed volume
-            boundaries_df_copy.loc[mask, 'length'] = volume_partition * float(volume_check_og) / len(L_values)
+            boundaries_df_copy.loc[mask, 'length'] = (
+                volume_partition * float(volume_check_og) / len(L_values)
+            )
+
+            # shift those same rows slightly inward
+            # moved_xyz = boundary_xyz + move_fraction * (X1 - boundary_xyz)
+            moved_xyz = X1 + (1 + move_fraction) * (boundary_xyz - X1)
+            boundaries_df_copy.loc[mask, ['x', 'y', 'z']] = moved_xyz
 
             # check: cell + all boundaries should equal original
-            new_total = cells_df.loc[cells_df['id'] == i, 'volume'].values[0] + boundaries_df_copy.loc[mask, 'length'].sum()
+            new_total = (
+                cells_df_copy.loc[cells_df_copy['id'] == i, 'volume'].values[0]
+                + boundaries_df_copy.loc[mask, 'length'].sum()
+            )
             print(f'Volume difference for {i} = {volume_check_og - new_total:.6f}')
 
     altered_cells_df = pd.concat([
-        cells_df,
+        cells_df_copy,
         boundaries_df_copy.rename(columns={'length': 'volume'})
     ]).reset_index(drop=True)
+
     altered_cells_df['id'] = altered_cells_df.index + 1
+    print('Altered cells df ######################')
+    print(altered_cells_df)
     return altered_cells_df
 
 def convert_graph_to_data_frames(self, G, boundaries_df):
