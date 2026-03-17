@@ -1,6 +1,6 @@
 import pandas as pd
 
-def write_graph_uge(cells_df, conns_df,filename = "graph.uge"):
+def write_graph_uge(cells_df, conns_df,filename = "full_mesh_vol_area.uge"):
     """
     Write a UGE-style file with:
 

@@ -2,8 +2,9 @@ from .graph_uge import make_connection_data_frame, make_cell_data_frame, convert
 from .compute_graph_to_pflotran_geometries import compute_graph_to_pflotran_geometries
 from .write_graph_uge import write_graph_uge
 from .graph_to_pflotran import graph_to_pflotran
-from .extract_graph_boundaries_from_dfn import extract_graph_boundaries_from_dfn, write_boundary_ex, write_ex
+from .extract_graph_boundaries_from_dfn import extract_graph_boundaries_from_dfn, parse_boundary_ex
 from .dump_h5_file_for_graph_perm import dump_h5_file_for_graph_perm
+from .write_boundary_ex import write_boundary_ex,write_boundary_ex_files, write_ex
 
 
 

@@ -103,41 +103,35 @@ def add_boundary_nodes_as_cells(self, G, cells_df, boundaries_df, omega=0.01):
     boundaries_df_copy["orig_length"] = boundaries_df_copy["length"]
 
     move_fraction = omega
-    # turn length into area by multiplying by fracture aperture
-    for i in range(1, self.num_frac + 1):
-        if i in boundaries_df_copy['id'].values:
-            # # calculate scaling factor (omega) for dividing cell volume based on coordinate of cell center and boundary
-            X1 = np.array(
-                cells_df_copy.loc[cells_df_copy['id'] == i, ['x', 'y', 'z']].values[0],
-                dtype=float
-            )
-            # find all boundary rows for this fracture and calculate L for each
-            mask = boundaries_df_copy['id'] == i
-            boundary_xyz = boundaries_df_copy.loc[mask, ['x', 'y', 'z']].to_numpy(dtype=float)
 
-            L_values = np.linalg.norm(boundary_xyz - X1, axis=1)
-            volume_check_og = cells_df_copy.loc[cells_df_copy['id'] == i, 'volume'].values[0]
-            print(volume_check_og)
-            # change volumes to share and preserve total volume
-            volume_partition = 1 / (len(L_values) + 1)
+    cell_xyz_map = cells_df_copy.set_index("id")[["x", "y", "z"]].to_dict("index")
+    cell_volume_map = cells_df_copy.set_index("id")["volume"].to_dict()
 
-            cells_df_copy.loc[cells_df_copy['id'] == i, 'volume'] *= (1 - volume_partition)
-            # each boundary gets an equal share of the removed volume
-            boundaries_df_copy.loc[mask, 'length'] = (
-                volume_partition * float(volume_check_og) / len(L_values)
-            )
+    for i in boundaries_df_copy["id"].unique():
+    # calculate scaling factor (omega) for dividing cell volume based on coordinate of cell center and boundary
 
-            # shift those same rows slightly inward
-            # moved_xyz = boundary_xyz + move_fraction * (X1 - boundary_xyz)
-            moved_xyz = X1 + (1 + move_fraction) * (boundary_xyz - X1)
-            boundaries_df_copy.loc[mask, ['x', 'y', 'z']] = moved_xyz
+        xyz = cell_xyz_map[i]
+        X1 = np.array([xyz["x"], xyz["y"], xyz["z"]], dtype=float)
+        # find all boundary rows for this fracture and calculate L for each
+        mask = boundaries_df_copy["id"] == i
+        boundary_xyz = boundaries_df_copy.loc[mask, ["x", "y", "z"]].to_numpy(dtype=float)
 
-            # check: cell + all boundaries should equal original
-            new_total = (
-                cells_df_copy.loc[cells_df_copy['id'] == i, 'volume'].values[0]
-                + boundaries_df_copy.loc[mask, 'length'].sum()
-            )
-            print(f'Volume difference for {i} = {volume_check_og - new_total:.6f}')
+        L_values = np.linalg.norm(boundary_xyz - X1, axis=1)
+
+        volume_check_og = cell_volume_map[i]
+        print(volume_check_og)
+        # change volumes to share and preserve total volume
+        volume_partition = 1 / (len(L_values) + 1)
+        new_volume = volume_check_og * (1 - volume_partition)
+
+        cells_df_copy.loc[cells_df_copy["id"] == i, "volume"] = new_volume
+        # each boundary gets an equal share of the removed volume
+        boundaries_df_copy.loc[mask, "length"] = (
+            volume_partition * float(volume_check_og) / len(L_values)
+        )
+        # check: cell + all boundaries should equal original
+        new_total = new_volume + boundaries_df_copy.loc[mask, "length"].sum()
+        print(f"Volume difference for {i} = {volume_check_og - new_total:.6f}")
 
     altered_cells_df = pd.concat([
         cells_df_copy,
