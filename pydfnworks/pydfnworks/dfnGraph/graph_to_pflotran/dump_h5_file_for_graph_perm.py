@@ -36,9 +36,16 @@ def dump_h5_file_for_graph_perm(self,cells_df, filename):
     #     dataset_name = 'Permeability' #this is n fractures long 
     #     h5dset = h5file.create_dataset(dataset_name, data=self.perm)
     cells_df_copy = cells_df.copy()
-
+    print("num_frac:", self.num_frac)
+    print("perm:", self.perm)
+    print("len(perm):", len(self.perm))
     # original fracture permeability map
-    perm_map = pd.Series(self.perm, index=np.arange(1, self.num_frac + 1))
+    # perm_map = pd.Series(self.perm, index=np.arange(1, self.num_frac + 1))
+    if self.num_frac == 1 and len(self.perm) != 1:
+        perm_value = float(np.mean(self.perm))
+        perm_map = pd.Series([perm_value], index=[1])
+    else:
+        perm_map = pd.Series(self.perm, index=np.arange(1, self.num_frac + 1))
 
     # choose source id for permeability
     source_ids = np.where(
@@ -61,17 +68,17 @@ def dump_h5_file_for_graph_perm(self,cells_df, filename):
         h5file.create_dataset('Permeability', data=perm_array)
 
     ## debug print to check the output from h5 file
-    # with h5py.File("dfn_properties.h5", "r") as f:
-    #     cell_ids = f["Cell Ids"]
-    #     perm = f["Permeability"]
+    with h5py.File("dfn_properties.h5", "r") as f:
+        cell_ids = f["Cell Ids"]
+        perm = f["Permeability"]
 
-    #     print("Cell Ids shape:", cell_ids.shape)
-    #     print("Cell Ids size :", cell_ids.size)
-    #     print("Cell Ids sample:", cell_ids[:10])
+        print("Cell Ids shape:", cell_ids.shape)
+        print("Cell Ids size :", cell_ids.size)
+        print("Cell Ids sample:", cell_ids[:10])
 
-    #     print("Permeability shape:", perm.shape)
-    #     print("Permeability size :", perm.size)
-    #     print("Permeability sample:", perm[:10])
+        print("Permeability shape:", perm.shape)
+        print("Permeability size :", perm.size)
+        print("Permeability sample:", perm[:10])
 
 # def make cells for the perm function above
 #h5dump(filename) > perm.out

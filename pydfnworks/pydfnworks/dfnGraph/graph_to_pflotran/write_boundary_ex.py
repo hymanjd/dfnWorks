@@ -45,7 +45,7 @@ def write_boundary_ex_files(cells_df, omega = 0.01):
     }
     cells_df_copy = cells_df.copy()
     move_fraction = omega
-
+    print(f'Cells df copy ^^^^^^^^^^^^^ {cells_df_copy}')
     # Internal rows are original fracture cells
     internal_df = cells_df_copy[cells_df_copy["row_type"] == "internal"].copy()
 
@@ -88,9 +88,9 @@ def write_boundary_ex_files(cells_df, omega = 0.01):
             float(P_shifted[0]),
             float(P_shifted[1]),
             float(P_shifted[2]),
-            float(row["orig_length"])
+            float(row["orig_length"])*1e-4
         ))
-
+    print(f'boundary_rows from .ex script ^^^^^^^^^^ {boundary_rows}')
     # Write one file per boundary
     for name, neg_id in BOUNDARY_NAME_TO_NEG_ID.items():
         filename = f"boundary_{name}.ex"

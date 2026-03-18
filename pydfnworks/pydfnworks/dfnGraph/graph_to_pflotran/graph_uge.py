@@ -12,8 +12,14 @@ def make_connection_data_frame(self, G):
             frac2 = frac_list[1]
             if frac1 != 's' and frac2 != 's' and frac1 != 't' and frac2 != 't': 
                 b1 = G.nodes[frac1]['aperture']
-                b2 = G.nodes[frac2]['aperture']
-                b_hmean = hmean([b1, b2])
+                try:
+                    b2 = G.nodes[frac2]['aperture']
+                    b_hmean = hmean([b1, b2])
+                except KeyError:
+                    b2 = None  # or some default value
+                    b_hmean = b1
+                # b2 = G.nodes[frac2]['aperture']
+                # b_hmean = hmean([b1, b2])
                 x = G.nodes[u]['x']
                 y = G.nodes[u]['y']
                 z = G.nodes[u]['z']
@@ -32,25 +38,29 @@ def add_boundary_nodes_as_conns(self, G, altered_cells_df, conns_df, boundaries_
     for i in range(1, self.num_frac + 1):
         if i in boundaries_df_copy['id'].values:  
             X1 = np.array(altered_cells_df_copy.loc[altered_cells_df_copy['id'] == i, ['x', 'y', 'z']].values[0])
+            # X1_vol = np.array(altered_cells_df_copy.loc[altered_cells_df_copy['id'] == i, ['volume']].values[0])
             # find all boundary rows for this fracture and calculate L for each
             mask = boundaries_df_copy['id'] == i
             L_values = boundaries_df_copy.loc[mask, ['x', 'y', 'z']].apply(
                 lambda row: np.linalg.norm(np.array(row) - X1), axis=1
             )
-            boundaries_df_copy.loc[mask, "length"] *= G.nodes[i]['aperture']
-            # boundaries_df_copy.rename(columns={'length': 'area'})
 
             #P(t) = X1 + t * (X0 - X1) - currently 0.5 is for the halfway point
             total_L = L_values.sum() #unused
             weights = L_values / total_L #unused
 
             midpoints = boundaries_df_copy.loc[mask, ['x', 'y', 'z']].apply(
-                lambda row: X1 + 0.5 * (np.array(row) - X1), axis=1, result_type='expand'
+                lambda row: X1 + 0.1 * (np.array(row) - X1), axis=1, result_type='expand'
             )
             midpoints.columns = ['x', 'y', 'z']
             boundaries_df_copy.loc[mask, 'x'] = midpoints['x'].values
             boundaries_df_copy.loc[mask, 'y'] = midpoints['y'].values
             boundaries_df_copy.loc[mask, 'z'] = midpoints['z'].values
+
+            boundaries_df_copy.loc[mask, "length"] *= G.nodes[i]['aperture']
+            # boundaries_df_copy.rename(columns={'length': 'area'})
+
+
     # match neg_ids to get the altered_cells id
     merged = boundaries_df_copy.merge(altered_cells_df_copy[['id', 'neg_id']], on='neg_id')
     # build and concat to conns_df

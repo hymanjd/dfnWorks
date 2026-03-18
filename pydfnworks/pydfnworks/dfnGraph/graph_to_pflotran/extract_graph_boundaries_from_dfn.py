@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 
-def parse_boundary_ex(
+def parse_boundary_ex(self,
+    G,
     intersection_list_path,
     area_default,
 ):
@@ -69,14 +70,29 @@ def parse_boundary_ex(
                 boundary_rows[neg_id].append((node_i, x, y, z, length)) 
 
 
-    return pd.concat([
+    boundaries_df = pd.concat([
         pd.DataFrame(rows, columns=["id", "x", "y", "z", "length"])
         .assign(neg_id=neg_id)
         for neg_id, rows in boundary_rows.items()
     ])[["neg_id", "id", "x", "y", "z", "length"]].reset_index(drop=True)
 
-def extract_graph_boundaries_from_dfn(area_default, intersection_list_path='./dfnGen_output/intersection_list.dat'):
-    boundaries_df = parse_boundary_ex(
+    print(f'Boundaries_df!!!!!!!!!!!!!!!!!!!!! {boundaries_df}')
+    #multply lengths time aperture to get area
+    ###we want .ex to be area 
+    # aperture_map = {}
+    # for i in range(1, self.num_frac + 1):
+    #     aperture_map[i] = G.nodes[i]['aperture']
+
+    # boundaries_df["length"] = (
+    #     boundaries_df["id"].map(aperture_map)
+    #     * boundaries_df["length"]
+    # )
+    # print(f'Boundaries_df!!!!!!!!!!!!!!!!!!!!! {boundaries_df}')
+
+    return boundaries_df
+
+def extract_graph_boundaries_from_dfn(self, G, area_default, intersection_list_path='./dfnGen_output/intersection_list.dat'):
+    boundaries_df = self.parse_boundary_ex(G,
         intersection_list_path=intersection_list_path,
         area_default=area_default
     )
