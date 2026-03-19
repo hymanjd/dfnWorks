@@ -141,9 +141,9 @@ class DFNWORKS():
     from pydfnworks.dfnGraph.graph_to_pflotran.compute_graph_to_pflotran_geometries import compute_graph_to_pflotran_geometries
     from pydfnworks.dfnGraph.graph_to_pflotran.write_graph_uge import write_graph_uge
     from pydfnworks.dfnGraph.graph_to_pflotran.graph_to_pflotran import graph_to_pflotran
-    from pydfnworks.dfnGraph.graph_to_pflotran.extract_graph_boundaries_from_dfn import extract_graph_boundaries_from_dfn, write_boundary_ex, write_ex
+    from pydfnworks.dfnGraph.graph_to_pflotran.extract_graph_boundaries_from_dfn import extract_graph_boundaries_from_dfn, parse_boundary_ex
     from pydfnworks.dfnGraph.graph_to_pflotran.dump_h5_file_for_graph_perm import dump_h5_file_for_graph_perm
-    
+    from pydfnworks.dfnGraph.graph_to_pflotran.write_boundary_ex import write_boundary_ex,write_boundary_ex_files, write_ex
     def __init__(self,
                  jobname=None,
                  ncpu=4,
