@@ -95,7 +95,7 @@ def compute_graph_to_pflotran_geometries(
         # epsilon and ahat using area from graph.uge
         area = float(r.area)
         eps = l3 / lij
-        ahat = area /eps
+        ahat = area * eps
         # else:
         #     eps = 0.0
         #     # ahat = 0
