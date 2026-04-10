@@ -91,9 +91,29 @@ def parse_boundary_ex(self,
 
     return boundaries_df
 
-def extract_graph_boundaries_from_dfn(self, G, area_default, intersection_list_path='./dfnGen_output/intersection_list.dat'):
-    boundaries_df = self.parse_boundary_ex(G,
+# def extract_graph_boundaries_from_dfn(self, G, area_default, intersection_list_path='./dfnGen_output/intersection_list.dat'):
+#     boundaries_df = self.parse_boundary_ex(G,
+#         intersection_list_path=intersection_list_path,
+#         area_default=area_default
+#     )
+#     return boundaries_df
+def extract_graph_boundaries_from_dfn(
+    self,
+    G,
+    area_default,
+    intersection_list_path='./dfnGen_output/intersection_list.dat',
+    selected_boundary_ids=None,
+):
+    boundaries_df = self.parse_boundary_ex(
+        G,
         intersection_list_path=intersection_list_path,
         area_default=area_default
     )
+
+    # Keep only requested boundaries, if provided
+    if selected_boundary_ids is not None:
+        boundaries_df = boundaries_df[
+            boundaries_df["neg_id"].isin(selected_boundary_ids)
+        ].reset_index(drop=True)
+
     return boundaries_df
