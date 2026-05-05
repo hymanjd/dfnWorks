@@ -82,14 +82,20 @@ def write_boundary_ex_files(cells_df, omega = 0.01):
         # make distance (1 + move_fraction) times longer
         P_shifted = X1 + (1.0 + move_fraction) * (P - X1)
 
-
         boundary_rows[neg_id].append((
             int(row["id"]),
             float(P_shifted[0]),
             float(P_shifted[1]),
             float(P_shifted[2]),
-            float(row["orig_length"])*1e-4
+            # 1 / (float(row["orig_length"])*1e-4)
+            1 / (float(row["orig_length"])*3.464101615137754701e-06)
+            # 100
+            
+            # 1000
+
+            # (float(row["orig_length"])* 1e-4) *2e5
         ))
+
     print(f'boundary_rows from .ex script ^^^^^^^^^^ {boundary_rows}')
     # Write one file per boundary
     for name, neg_id in BOUNDARY_NAME_TO_NEG_ID.items():

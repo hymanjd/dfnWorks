@@ -34,7 +34,13 @@ def add_boundary_nodes_as_conns(self, G, altered_cells_df, conns_df, boundaries_
     boundaries_df_copy = boundaries_df.copy()
     altered_cells_df_copy = altered_cells_df.copy()
     conns_df_copy = conns_df.copy()
+    # preserve original geometry for later association
+    boundaries_df_copy['x_orig'] = boundaries_df_copy['x']
+    boundaries_df_copy['y_orig'] = boundaries_df_copy['y']
+    boundaries_df_copy['z_orig'] = boundaries_df_copy['z']
+    boundaries_df_copy['length_orig'] = boundaries_df_copy['length']
     # turn length into area by multiplying by fracture aperture
+    # print(boundaries_df_copy)
     for i in range(1, self.num_frac + 1):
         if i in boundaries_df_copy['id'].values:  
             X1 = np.array(altered_cells_df_copy.loc[altered_cells_df_copy['id'] == i, ['x', 'y', 'z']].values[0])
@@ -49,8 +55,16 @@ def add_boundary_nodes_as_conns(self, G, altered_cells_df, conns_df, boundaries_
             total_L = L_values.sum() #unused
             weights = L_values / total_L #unused
 
+            # midpoints = boundaries_df_copy.loc[mask, ['x', 'y', 'z']].apply(
+            #     lambda row: np.array(row) + 0.01 * (X1 - np.array(row)),
+            #     axis=1,
+            #     result_type='expand'
+            # )
+
             midpoints = boundaries_df_copy.loc[mask, ['x', 'y', 'z']].apply(
-                lambda row: X1 + 0.1 * (np.array(row) - X1), axis=1, result_type='expand'
+                lambda row: np.array(row) + 0.01 * (X1 - np.array(row)),
+                axis=1,
+                result_type='expand'
             )
             midpoints.columns = ['x', 'y', 'z']
             boundaries_df_copy.loc[mask, 'x'] = midpoints['x'].values
@@ -58,17 +72,56 @@ def add_boundary_nodes_as_conns(self, G, altered_cells_df, conns_df, boundaries_
             boundaries_df_copy.loc[mask, 'z'] = midpoints['z'].values
 
             boundaries_df_copy.loc[mask, "length"] *= G.nodes[i]['aperture']
+            # print('boundaries after logic')
+            # print(boundaries_df_copy)
+            # print(G.nodes[i]['aperture'])
+            # print(boundaries_df_copy.loc[mask, "length"])
+            # print(boundaries_df_copy.loc[mask, "length"] * G.nodes[i]['aperture'])
+            # print('exit')
+            # exit()
             # boundaries_df_copy.rename(columns={'length': 'area'})
+            # print(f'mask!!!!!!!!!!!!!!!!!!! {mask}')
+            # print(f'L_values!!!!!!!!!!!!!!!!!!!! {L_values}')
+            # print(f'midpoints!!!!!!!!!!!!!!!! {midpoints}')
+            # print(f'boundaries_df !!!!!!!!!!!!!!!!! {boundaries_df}')
+            # exit()
 
 
-    # match neg_ids to get the altered_cells id
-    merged = boundaries_df_copy.merge(altered_cells_df_copy[['id', 'neg_id']], on='neg_id')
-    # build and concat to conns_df
-    conns_df_updated = pd.concat([
-        conns_df_copy,
-        merged.rename(columns={'id_y': 'i', 'id_x': 'j', 'x': 'xc', 'y': 'yc', 'z': 'zc', 'length': 'area'})[['i', 'j', 'xc', 'yc', 'zc', 'area']]
-    ]).reset_index(drop=True)
+    # # match neg_ids to get the altered_cells id
+    # merged = boundaries_df_copy.merge(altered_cells_df_copy[['id', 'neg_id']], on='neg_id')
+    # # build and concat to conns_df
+    # conns_df_updated = pd.concat([
+    #     conns_df_copy,
+    #     merged.rename(columns={'id_y': 'i', 'id_x': 'j', 'x': 'xc', 'y': 'yc', 'z': 'zc', 'length': 'area'})[['i', 'j', 'xc', 'yc', 'zc', 'area']]
+    # ]).reset_index(drop=True)
+    boundary_cells = altered_cells_df_copy.loc[
+        altered_cells_df_copy['row_type'] == 'boundary',
+        ['id', 'parent_cell_id', 'neg_id', 'x', 'y', 'z', 'orig_length']
+    ].rename(columns={'id': 'altered_id'})
+
+    merged = boundaries_df_copy.merge(
+        boundary_cells,
+        left_on=['neg_id', 'x_orig', 'y_orig', 'z_orig', 'length_orig'],
+        right_on=['neg_id', 'x', 'y', 'z', 'orig_length'],
+        how='left',
+        validate='one_to_one'
+    )
+
+    new_conns = merged.rename(columns={
+        'altered_id': 'i',
+        'id': 'j',
+        'x_x': 'xc',
+        'y_x': 'yc',
+        'z_x': 'zc',
+        'length': 'area'
+    })[['i', 'j', 'xc', 'yc', 'zc', 'area']]
+
+    conns_df_updated = pd.concat([conns_df_copy, new_conns], ignore_index=True)
+
     print(f'Total area: {conns_df_updated["area"].sum():.12f}')
+    print(f'merged!!!!!!!!!!!!!!!!!!! {merged}')
+    print(f'conns_df!!!!!!!!!!!!!!!!!!!! {conns_df_updated}')
+    # exit()
     return conns_df_updated
 
 
@@ -118,30 +171,56 @@ def add_boundary_nodes_as_cells(self, G, cells_df, boundaries_df, omega=0.01):
     cell_volume_map = cells_df_copy.set_index("id")["volume"].to_dict()
 
     for i in boundaries_df_copy["id"].unique():
-    # calculate scaling factor (omega) for dividing cell volume based on coordinate of cell center and boundary
-
         xyz = cell_xyz_map[i]
         X1 = np.array([xyz["x"], xyz["y"], xyz["z"]], dtype=float)
+
         # find all boundary rows for this fracture and calculate L for each
         mask = boundaries_df_copy["id"] == i
         boundary_xyz = boundaries_df_copy.loc[mask, ["x", "y", "z"]].to_numpy(dtype=float)
 
         L_values = np.linalg.norm(boundary_xyz - X1, axis=1)
 
-        volume_check_og = cell_volume_map[i]
+        volume_check_og = float(cell_volume_map[i])
         print(volume_check_og)
-        # change volumes to share and preserve total volume
-        volume_partition = 1 / (len(L_values) + 1)
-        new_volume = volume_check_og * (1 - volume_partition)
 
-        cells_df_copy.loc[cells_df_copy["id"] == i, "volume"] = new_volume
-        # each boundary gets an equal share of the removed volume
-        boundaries_df_copy.loc[mask, "length"] = (
-            volume_partition * float(volume_check_og) / len(L_values)
-        )
+        n_additions = len(L_values)
+        new_fraction_each = 0.01058 #4rects
+        # new_fraction_each = 0.017805 #inflow constant_pressure
+        # new_fraction_each = 0.1
+
+
+        total_new_fraction = new_fraction_each * n_additions
+        original_fraction = 1.0 - total_new_fraction
+
+        # original cell keeps the remaining percentage
+        original_volume = volume_check_og * original_fraction
+        cells_df_copy.loc[cells_df_copy["id"] == i, "volume"] = original_volume
+
+        # each new boundary gets 5% of original volume
+        boundary_volume = volume_check_og * new_fraction_each
+        boundaries_df_copy.loc[mask, "length"] = boundary_volume
+
         # check: cell + all boundaries should equal original
-        new_total = new_volume + boundaries_df_copy.loc[mask, "length"].sum()
-        print(f"Volume difference for {i} = {volume_check_og - new_total:.6f}")
+        new_total = original_volume + boundaries_df_copy.loc[mask, "length"].sum()
+
+        diff = volume_check_og - new_total
+        print(f"Volume difference for {i} = {diff:.6f}")
+
+        # use tolerance instead of !=
+        if not np.isclose(new_total, volume_check_og, atol=1e-9):
+            print(f"ERROR: volume not conserved for cell {i}")
+            exit()
+
+
+
+
+
+
+        # # check: cell + all boundaries should equal original
+        # new_total = new_volume + boundaries_df_copy.loc[mask, "length"].sum()
+        # print(f"Volume difference for {i} = {volume_check_og - new_total:.6f}")
+        # if new_total != 0
+        #     exit()
 
     altered_cells_df = pd.concat([
         cells_df_copy,

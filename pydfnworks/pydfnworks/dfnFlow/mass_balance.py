@@ -142,37 +142,57 @@ def flow_rate(darcy_vel_file, boundary_file):
     else: 
         dat_boundary = np.genfromtxt(boundary_file, skip_header=1)[0]
         dat = np.genfromtxt(darcy_vel_file)
-        for cell in [dat_boundary]:
-            if (np.any(dat[0] == int(cell))):
-                cell_up = int(dat[0])
-                cell_down = int(dat[1])
-                mass_flux = dat[2]  # in m/s , darcy flux, right? m3/m2/s
-                density = dat[3]  # in kg/m3
-                area = dat[4]  # in m^2
-                if (cell_up == int(cell)):
-                    mass_rate = mass_flux * area * \
-                    density + mass_rate  # in kg/s
-                    volume_rate = mass_flux * area + volume_rate  #in m3/s
-                else:
-                    mass_rate = - mass_flux * area * \
-                    density + mass_rate  # in kg/s
-                    volume_rate = -mass_flux * area + volume_rate  #in m3/s
-                #print cell_up, cell_down, mass_flux, density, area, mass_rate, volume_rate
-            if (np.any(dat[1] == int(cell))):
-                cell_up = int(dat[0])
-                cell_down = int(dat[1])
-                mass_flux = dat[2]  # in m/s
-                density = dat[3]  # in kg/m3
-                area = dat[4]  # in m^2
-                if (cell_up == int(cell)):
-                    mass_rate = mass_flux * area * \
-                    density + mass_rate  # in kg/s
-                    volume_rate = mass_flux * area + volume_rate  #in m3/s
-                else:
-                    mass_rate = - mass_flux * area * \
-                    density + mass_rate  # in kg/s
-                    volume_rate = -mass_flux * area + volume_rate  #in m3/s
-                    #print cell_up, cell_down, mass_flux, density, area, mass_rate, volume_rate
+        # for cell in [dat_boundary]:
+            # if (np.any(dat[0] == int(cell))):
+            #     cell_up = int(dat[0])
+            #     cell_down = int(dat[1])
+            #     mass_flux = dat[2]  # in m/s , darcy flux, right? m3/m2/s
+            #     density = dat[3]  # in kg/m3
+            #     area = dat[4]  # in m^2
+
+            #     if (cell_up == int(cell)):
+            #         mass_rate = mass_flux * area * \
+            #         density + mass_rate  # in kg/s
+            #         volume_rate = mass_flux * area + volume_rate  #in m3/s
+            #     else:
+            #         mass_rate = - mass_flux * area * \
+            #         density + mass_rate  # in kg/s
+            #         volume_rate = -mass_flux * area + volume_rate  #in m3/s
+            #     #print cell_up, cell_down, mass_flux, density, area, mass_rate, volume_rate
+            # # if (np.any(dat[1] == int(cell))):
+            # #     cell_up = int(dat[0])
+            # #     cell_down = int(dat[1])
+            # #     mass_flux = dat[2]  # in m/s
+            # #     density = dat[3]  # in kg/m3
+            # #     area = dat[4]  # in m^2
+            #     if (cell_up == int(cell)):
+            #         mass_rate = mass_flux * area * \
+            #         density + mass_rate  # in kg/s
+            #         volume_rate = mass_flux * area + volume_rate  #in m3/s
+            #     else:
+            #         mass_rate = - mass_flux * area * \
+            #         density + mass_rate  # in kg/s
+            #         volume_rate = -mass_flux * area + volume_rate  #in m3/s
+            #         #print cell_up, cell_down, mass_flux, density, area, mass_rate, volume_rate
+        mass_rate = 0.0
+        volume_rate = 0.0
+
+        for row in dat:
+            cell_up = int(row[0])
+            cell_down = int(row[1])
+            mass_flux = row[2]
+            density = row[3]
+            area = row[4]
+
+            if cell_up == dat_boundary:
+                mass_rate += mass_flux * area * density
+                volume_rate += mass_flux * area
+
+            elif cell_down == dat_boundary:
+                mass_rate -= mass_flux * area * density
+                volume_rate -= mass_flux * area
+
+        # return mass_rate, volume_rate
 
     return mass_rate, volume_rate
 
