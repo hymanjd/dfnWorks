@@ -278,3 +278,5 @@ def effective_perm(self, inflow_pressure, outflow_pressure, boundary_file,
                                outflow_pressure)
     self.print_log("--> Complete")
     self.keff = keff
+    self.volume_rate = volume_rate
+    return volume_rate  
