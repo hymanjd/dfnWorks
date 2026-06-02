@@ -77,124 +77,67 @@ def flow_rate(darcy_vel_file, boundary_file):
     ----------
         darcy_vel_file : string
             Name of concatenated Darcy velocity file
-        
+
         boundary_file : string
-             ex file for the inflow boundary
+            ex file for the inflow boundary
 
     Returns
     -------
         mass_rate : float
-            Mass flow rate across the inflow boundary
-        
+            Mass flow rate across the inflow boundary [kg/s]
+
         volume_rate : float
-            Volumetric flow rate across the inflow boundary
+            Volumetric flow rate across the inflow boundary [m^3/s]
 
     Notes
-    --------
-        None
-'''
-    # Calculate the mass flow rate
-    mass_rate = 0.0  #kg/s
-    volume_rate = 0.0  #m^3/s
+    -----
+        Handles boundary files with either a single cell or multiple cells
+        uniformly. Sign convention: flux from cell_up -> cell_down is
+        positive when cell_up is on the boundary (outflow direction from
+        the boundary cell), negative when cell_down is on the boundary.
+    '''
+    # Load boundary cell IDs, normalizing to a 1-D array regardless of
+    # whether the file contains a single row or many.
+    boundary_data = np.atleast_2d(np.genfromtxt(boundary_file, skip_header=1))
+    boundary_cells = set(boundary_data[:, 0].astype(int).tolist())
 
-    full = True
-    if full:
+    # Load Darcy velocity data, also normalized to 2-D.
+    dat = np.atleast_2d(np.genfromtxt(darcy_vel_file))
 
-        dat_boundary = np.genfromtxt(boundary_file, skip_header=1)
-        dat = np.genfromtxt(darcy_vel_file)
-        for cell in dat_boundary[:,0]:
-            if (np.any(dat[:, 0] == int(cell))):
-                ids = np.where(dat[:, 0] == int(cell))[0]
-                for idx in ids:
-                    cell_up = int(dat[idx, 0])
-                    cell_down = int(dat[idx, 1])
-                    mass_flux = dat[idx, 2]  # in m/s , darcy flux, right? m3/m2/s
-                    density = dat[idx, 3]  # in kg/m3
-                    area = dat[idx, 4]  # in m^2
-                    if (cell_up == int(cell)):
-                        mass_rate += mass_flux * area * \
-                        density  # in kg/s
-                        volume_rate += mass_flux * area  #in m3/s
-                    else:
-                        mass_rate = - mass_flux * area * \
-                        density + mass_rate  # in kg/s
-                        volume_rate = -mass_flux * area + volume_rate  #in m3/s
-                    #print cell_up, cell_down, mass_flux, density, area, mass_rate, volume_rate
-            if (np.any(dat[:, 1] == int(cell))):
-                ids = np.where(dat[:, 1] == int(cell))[0]
-                for idx in ids:
-                    cell_up = int(dat[idx, 0])
-                    cell_down = int(dat[idx, 1])
-                    mass_flux = dat[idx, 2]  # in m/s
-                    density = dat[idx, 3]  # in kg/m3
-                    area = dat[idx, 4]  # in m^2
-                    if (cell_up == int(cell)):
-                        mass_rate = mass_flux * area * \
-                        density + mass_rate  # in kg/s
-                        volume_rate = mass_flux * area + volume_rate  #in m3/s
-                    else:
-                        mass_rate = - mass_flux * area * \
-                        density + mass_rate  # in kg/s
-                        volume_rate = -mass_flux * area + volume_rate  #in m3/s
-                    #print cell_up, cell_down, mass_flux, density, area, mass_rate, volume_ratei
-        
+    mass_rate = 0.0    # kg/s
+    volume_rate = 0.0  # m^3/s
 
-    else: 
-        dat_boundary = np.genfromtxt(boundary_file, skip_header=1)[0]
-        dat = np.genfromtxt(darcy_vel_file)
-        # for cell in [dat_boundary]:
-            # if (np.any(dat[0] == int(cell))):
-            #     cell_up = int(dat[0])
-            #     cell_down = int(dat[1])
-            #     mass_flux = dat[2]  # in m/s , darcy flux, right? m3/m2/s
-            #     density = dat[3]  # in kg/m3
-            #     area = dat[4]  # in m^2
+    for row in dat:
+        cell_up = int(row[0])
+        cell_down = int(row[1])
+        mass_flux = row[2]  # darcy flux [m/s] (i.e. m^3/m^2/s)
+        density = row[3]    # kg/m^3
+        area = row[4]       # m^2
 
-            #     if (cell_up == int(cell)):
-            #         mass_rate = mass_flux * area * \
-            #         density + mass_rate  # in kg/s
-            #         volume_rate = mass_flux * area + volume_rate  #in m3/s
-            #     else:
-            #         mass_rate = - mass_flux * area * \
-            #         density + mass_rate  # in kg/s
-            #         volume_rate = -mass_flux * area + volume_rate  #in m3/s
-            #     #print cell_up, cell_down, mass_flux, density, area, mass_rate, volume_rate
-            # # if (np.any(dat[1] == int(cell))):
-            # #     cell_up = int(dat[0])
-            # #     cell_down = int(dat[1])
-            # #     mass_flux = dat[2]  # in m/s
-            # #     density = dat[3]  # in kg/m3
-            # #     area = dat[4]  # in m^2
-            #     if (cell_up == int(cell)):
-            #         mass_rate = mass_flux * area * \
-            #         density + mass_rate  # in kg/s
-            #         volume_rate = mass_flux * area + volume_rate  #in m3/s
-            #     else:
-            #         mass_rate = - mass_flux * area * \
-            #         density + mass_rate  # in kg/s
-            #         volume_rate = -mass_flux * area + volume_rate  #in m3/s
-            #         #print cell_up, cell_down, mass_flux, density, area, mass_rate, volume_rate
-        mass_rate = 0.0
-        volume_rate = 0.0
+        up_on_boundary = cell_up in boundary_cells
+        down_on_boundary = cell_down in boundary_cells
 
-        for row in dat:
-            cell_up = int(row[0])
-            cell_down = int(row[1])
-            mass_flux = row[2]
-            density = row[3]
-            area = row[4]
+        # Skip connections that don't touch the boundary at all.
+        if not (up_on_boundary or down_on_boundary):
+            continue
 
-            if cell_up == dat_boundary:
-                mass_rate += mass_flux * area * density
-                volume_rate += mass_flux * area
+        volumetric = mass_flux * area
+        massic = volumetric * density
 
-            elif cell_down == dat_boundary:
-                mass_rate -= mass_flux * area * density
-                volume_rate -= mass_flux * area
+        # If the boundary cell is on the "up" side, flux leaves it as +.
+        # If on the "down" side, flux into it is -.  When both endpoints
+        # are boundary cells the contributions cancel, which is correct.
+        sign = 0
+        if up_on_boundary:
+            sign += 1
+        if down_on_boundary:
+            sign -= 1
 
-        # return mass_rate, volume_rate
+        mass_rate += sign * massic
+        volume_rate += sign * volumetric
 
     return mass_rate, volume_rate
+
 
 
 def dump_effective_perm(local_jobname, mass_rate, volume_rate, domain,
@@ -335,4 +278,5 @@ def effective_perm(self, inflow_pressure, outflow_pressure, boundary_file,
                                outflow_pressure)
     self.print_log("--> Complete")
     self.keff = keff
-    return volume_rate
+    self.volume_rate = volume_rate
+    return volume_rate  
