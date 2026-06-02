@@ -97,7 +97,7 @@ def flow_rate(darcy_vel_file, boundary_file):
     mass_rate = 0.0  #kg/s
     volume_rate = 0.0  #m^3/s
 
-    full = False
+    full = True
     if full:
 
         dat_boundary = np.genfromtxt(boundary_file, skip_header=1)
@@ -335,3 +335,4 @@ def effective_perm(self, inflow_pressure, outflow_pressure, boundary_file,
                                outflow_pressure)
     self.print_log("--> Complete")
     self.keff = keff
+    return volume_rate
