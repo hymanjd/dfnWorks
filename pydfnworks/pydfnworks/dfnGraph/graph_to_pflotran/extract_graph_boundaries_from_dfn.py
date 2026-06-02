@@ -3,27 +3,53 @@ import pandas as pd
 
 def parse_boundary_ex(self,
     G,
-    intersection_list_path,
-    area_default,
+    intersection_list_path
 ):
     """
-    Reads intersection_list.dat and writes one .ex file per boundary face.
+    Parse ``intersection_list.dat`` and return a DataFrame of boundary rows.
 
-    intersection_list.dat format:
-        f1 f2 x y z length
-    where boundary rows have one negative boundary ID (-1..-6) and one positive node ID.
+    Reads each row of the intersection list, identifies boundary connections
+    (those with one negative boundary ID and one positive node ID), and
+    assembles them into a single DataFrame.
 
-    Output files:
-        boundary_top.ex       (neg_id = -1)
-        boundary_bottom.ex    (neg_id = -2)
-        boundary_left_w.ex    (neg_id = -3)
-        boundary_front_n.ex   (neg_id = -4)
-        boundary_right_e.ex   (neg_id = -5)
-        boundary_back_s.ex    (neg_id = -6)
+    Parameters
+    ----------
+    G : networkx.Graph
+        NetworkX graph representation of the DFN network. Accepted for
+        interface consistency but not directly used in parsing.
+    intersection_list_path : str
+        Path to the dfnWorks ``intersection_list.dat`` file.
 
-    Each .ex file format:
-        CONNECTIONS\t<count>
-        <node_id>\t<x>\t<y>\t<z>\t<area>
+        Expected file format (whitespace-delimited, one row per connection)::
+
+            f1  f2  x  y  z  length
+
+        Boundary rows are identified by one negative boundary ID (``-1``
+        through ``-6``) and one positive node ID.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame of boundary connections with columns
+        ``neg_id``, ``id``, ``x``, ``y``, ``z``, and ``length``.
+
+        The ``neg_id`` column maps to boundary faces as follows:
+
+        ========  =========
+        ``neg_id``  Face
+        ========  =========
+        ``-1``    top
+        ``-2``    bottom
+        ``-3``    left_w
+        ``-4``    front_n
+        ``-5``    right_e
+        ``-6``    back_s
+        ========  =========
+
+    Notes
+    -----
+    Lines that are empty, begin with ``f1`` (header), contain fewer than
+    six fields, or cannot be parsed as numeric values are silently skipped.
     """
 
     BOUNDARY_NAME_TO_NEG_ID = {
@@ -76,38 +102,46 @@ def parse_boundary_ex(self,
         for neg_id, rows in boundary_rows.items()
     ])[["neg_id", "id", "x", "y", "z", "length"]].reset_index(drop=True)
 
-    print(f'Boundaries_df!!!!!!!!!!!!!!!!!!!!! {boundaries_df}')
-    #multply lengths time aperture to get area
-    ###we want .ex to be area 
-    # aperture_map = {}
-    # for i in range(1, self.num_frac + 1):
-    #     aperture_map[i] = G.nodes[i]['aperture']
-
-    # boundaries_df["length"] = (
-    #     boundaries_df["id"].map(aperture_map)
-    #     * boundaries_df["length"]
-    # )
-    # print(f'Boundaries_df!!!!!!!!!!!!!!!!!!!!! {boundaries_df}')
-
     return boundaries_df
 
-# def extract_graph_boundaries_from_dfn(self, G, area_default, intersection_list_path='./dfnGen_output/intersection_list.dat'):
-#     boundaries_df = self.parse_boundary_ex(G,
-#         intersection_list_path=intersection_list_path,
-#         area_default=area_default
-#     )
-#     return boundaries_df
 def extract_graph_boundaries_from_dfn(
     self,
     G,
-    area_default,
     intersection_list_path='./dfnGen_output/intersection_list.dat',
     selected_boundary_ids=None,
 ):
+    """
+    Extract boundary connections from a dfnWorks intersection list.
+
+    Delegates parsing to :func:`parse_boundary_ex`, then optionally filters
+    the result to a user-specified subset of boundary faces.
+
+    Parameters
+    ----------
+    G : networkx.Graph
+        NetworkX graph representation of the DFN network.
+    intersection_list_path : str, optional
+        Path to the dfnWorks ``intersection_list.dat`` file.
+        Default is ``"./dfnGen_output/intersection_list.dat"``.
+    selected_boundary_ids : list of int or None, optional
+        Negative boundary IDs to retain in the output (e.g. ``[-3, -5]``
+        for the left and right faces only). If ``None``, all six boundary
+        faces are returned. Default is ``None``.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame of boundary connections with columns
+        ``neg_id``, ``id``, ``x``, ``y``, ``z``, and ``length``,
+        filtered to *selected_boundary_ids* if provided.
+
+    See Also
+    --------
+    parse_boundary_ex : Low-level parser for ``intersection_list.dat``.
+    """
     boundaries_df = self.parse_boundary_ex(
         G,
-        intersection_list_path=intersection_list_path,
-        area_default=area_default
+        intersection_list_path=intersection_list_path
     )
 
     # Keep only requested boundaries, if provided
