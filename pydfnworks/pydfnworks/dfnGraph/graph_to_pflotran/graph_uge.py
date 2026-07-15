@@ -53,9 +53,9 @@ def add_boundary_nodes_as_conns(self, G, altered_cells_df, conns_df, boundaries_
     Add boundary-node connections to an existing connection DataFrame.
 
     Boundary-to-internal connections from dfnWorks ``.uge`` files connect at
-    the cell centre, omitting the half-cell segment between the boundary point
-    and that centre. This function amends the geometry by nudging each boundary
-    point 1 % of the way toward its parent cell centre, computes the
+    the cell center, omitting the half-cell segment between the boundary point
+    and that center. This function amends the geometry by nudging each boundary
+    point 1 % of the way toward its parent cell center, computes the
     corresponding connection areas, matches each boundary row to its added
     boundary cell, and appends the new connections to the existing DataFrame.
 
@@ -141,7 +141,7 @@ def make_cell_data_frame(self, G):
     """
     Create a PFLOTRAN unstructured grid cell DataFrame from a NetworkX graph.
 
-    Assigns volumes and centre coordinates to each fracture node, then
+    Assigns volumes and center coordinates to each fracture node, then
     collects those properties into a DataFrame. Only internal cells are
     assigned.
 
@@ -175,7 +175,7 @@ def make_cell_data_frame(self, G):
     cells_df = pd.DataFrame(cells, columns=["id", "x", "y", "z", "volume"])
     return cells_df
 
-def add_boundary_nodes_as_cells(self, G, cells_df, boundaries_df, omega=1e-6):
+def add_boundary_nodes_as_cells(self, G, cells_df, boundaries_df, omega=1e-6):     
     """
     Add boundary cells to an existing cell DataFrame, conserving total volume.
 

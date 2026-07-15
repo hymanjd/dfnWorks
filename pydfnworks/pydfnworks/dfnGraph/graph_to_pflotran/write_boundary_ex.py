@@ -67,8 +67,8 @@ def write_boundary_ex_files(cells_df, omega = 0.01):
 
     omega : float, optional
         Fractional outward shift applied to each boundary point relative to
-        the vector from its parent cell centre.  A value of ``0.01`` moves
-        the point 1 % farther from the parent centre along that vector.
+        the vector from its parent cell center.  A value of ``0.01`` moves
+        the point 1 % farther from the parent center along that vector.
         Default is ``0.01``.
 
     Returns
@@ -95,7 +95,7 @@ def write_boundary_ex_files(cells_df, omega = 0.01):
     Notes
     -----
     The outward-shift formula applied to each boundary point *P* given its
-    parent centre *X1* is:
+    parent center *X1* is:
 
     .. math::
 

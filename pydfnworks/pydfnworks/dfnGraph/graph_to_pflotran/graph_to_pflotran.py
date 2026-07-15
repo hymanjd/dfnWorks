@@ -6,8 +6,7 @@ def graph_to_pflotran(self, G, uge_filename = "full_mesh_vol_area.uge"):
     """
     Convert a dfnWorks-generated DFN into a PFLOTRAN unstructured grid.
 
-    Orchestrates the full pipeline from graph representation to PFLOTRAN
-    input files in seven sequential steps:
+    Orchestrates the full pipeline from graph representation to PFLOTRAN input files in seven sequential steps:
 
     1. Extract boundary information via :func:`extract_graph_boundaries_from_dfn`.
     2. Build cell and connection DataFrames via :func:`convert_graph_to_data_frames`.
@@ -58,7 +57,7 @@ def graph_to_pflotran(self, G, uge_filename = "full_mesh_vol_area.uge"):
     cells_df, conns_df = self.convert_graph_to_data_frames(G, boundaries_df)
     conns_df = compute_graph_to_pflotran_geometries(cells_df, conns_df)
     write_boundary_ex(cells_df)
-    cells_df.to_csv("altered_cells_df.dat", sep=" ", index=False)
+    cells_df.to_csv("altered_cells_df.dat", sep=" ", index=False) #this is used for writing attributes to VTK file for visualization
     write_graph_uge(cells_df, conns_df, uge_filename)
     self.dump_h5_file_for_graph_perm(cells_df,filename = 'dfn_properties.h5')
 
