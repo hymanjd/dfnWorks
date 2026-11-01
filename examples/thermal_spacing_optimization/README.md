@@ -13,23 +13,21 @@ the circulation rate is scaled to 20 kg/s.
 
 `driver.py` writes, in `output/`:
 
-- `heat_rate_dfn_spacing.csv`: Q(t) at the spacing implied by the DFN
-- `objective_vs_spacing_<case>.csv` and `heat_rate_best_<case>.csv` for
-  three cases: time to 10 % thermal drawdown and 30-year cumulative heat
-  with stages filling a fixed lateral (n = L / spacing), and 30-year
-  cumulative heat with the DFN fracture count fixed and spacing free
-- `spacing_optimization.png`: objective curves and Q(t) for the best
-  spacing of each case
+- `objective_vs_spacing.csv`: 30-year cumulative heat for stages filling
+  the lateral (n = L / spacing, integer n)
+- `heat_rate_best.csv`: Q(t) at the best spacing
+- `spacing_optimization.png`: the objective curve and Q(t) at the best
+  spacing beside Q(t) at the spacing implied by the DFN
 
 Expect the surrogate on its own to give monotone objectives: at fixed
 total flow and fixed rock volume the sharpest thermal front (closest
 spacing, most fractures) is best, and at fixed fracture count more rock
 (wider spacing) is best. A trade-off appears once a cost per stage or the
 Phase 2 DFN backend (flow partition and connectivity) enters the
-objective; both plug into `optimize_spacing` without changing it. The
-driver ends by pointing the optimizer at the Phase 2 backend
-(`pydfnworks.thermal.dfn_heat`), which raises `NotImplementedError` in
-this version.
+objective; both plug into `optimize_spacing` without changing it, and so
+does the DFN backend (`pydfnworks.thermal.dfn_heat`, which raises
+`NotImplementedError` in this version) through its `heat_extraction`
+argument.
 
 The surrogate call takes about 100 microseconds, so the DFN generation and
 well intersection dominate the run time.
@@ -40,7 +38,7 @@ Check out the branch and reinstall pydfnworks so the new `pydfnworks.thermal`
 subpackage is picked up, then run the verification scripts:
 
     git fetch origin && git checkout feature/thermal-mpf-surrogate
-    cd pydfnworks && pip install -e . && python tests/thermal/run_thermal_verification.py
+    cd pydfnworks && pip install -e . && python tests/thermal/verify_thermal.py
 
 Then run this example from its directory:
 

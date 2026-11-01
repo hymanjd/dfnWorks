@@ -23,13 +23,12 @@ flow rate is the mass flow the surrogate uses. Three things are added.
    (documented in `dfn_heat.py`). The thermally retarded arrival times in
    `thermal_partime.hdf5` are the ingredient the DFN-based heat backend
    will convert to Q(t).
-3. **Spacing optimization with the Phase 1 surrogate**, and a call to the
-   Phase 2 backend with the DFN and flow graph, which raises
-   `NotImplementedError` in this version.
+3. **Spacing optimization with the surrogate**: stages filling the domain
+   length, objective time to 10 % thermal drawdown, with the mass flow
+   rate taken from the graph flow solution.
 
-Outputs in `output/`: `thermal_partime.hdf5`, `heat_rate_dfn_spacing.csv`,
-`objective_vs_spacing_<case>.csv`, `heat_rate_best_<case>.csv`, and
-`spacing_optimization.png`. As in `thermal_spacing_optimization`, the
+Outputs in `output/`: `thermal_partime.hdf5`, `objective_vs_spacing.csv`,
+`heat_rate_best.csv`, and `spacing_optimization.png`. As in `thermal_spacing_optimization`, the
 surrogate alone gives monotone objectives; see that example's README.
 
 ## Running on another machine
@@ -38,7 +37,7 @@ Check out the branch and reinstall pydfnworks so the new `pydfnworks.thermal`
 subpackage is picked up, then run the verification scripts:
 
     git fetch origin && git checkout feature/thermal-mpf-surrogate
-    cd pydfnworks && pip install -e . && python tests/thermal/run_thermal_verification.py
+    cd pydfnworks && pip install -e . && python tests/thermal/verify_thermal.py
 
 Then run this example from its directory:
 

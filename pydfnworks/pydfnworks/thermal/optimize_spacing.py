@@ -1,233 +1,132 @@
 """
 .. module:: optimize_spacing.py
-   :synopsis: Minimal hydraulic-fracture spacing optimizer over a
-              heat_extraction() backend
+   :synopsis: Fracture spacing optimizer over a heat_extraction() backend
 .. moduleauthor:: Jeffrey Hyman <jhyman@lanl.gov>
 
 Notes
 -----
-    The optimizer only sees the heat_extraction() interface, so the Phase
-    1 surrogate and the Phase 2 DFN backend are interchangeable through
-    the heat_extraction argument. Objectives are callables
-    objective(t, Q) -> float that are maximized; two are provided and any
-    user function with that signature is accepted.
+    The optimizer evaluates every candidate spacing and keeps the best,
+    which is all a one-dimensional, cheap (100 microsecond) and, for the
+    surrogate, monotone objective needs; it also leaves the whole
+    objective curve available. The backend is an argument, so the
+    surrogate and the DFN backend are interchangeable here.
 """
 
 import numpy as np
-from scipy.optimize import minimize_scalar, differential_evolution
 
-from pydfnworks.thermal.mpf_gringarten import heat_extraction as _default_backend
+from pydfnworks.thermal import mpf_gringarten
 
-OPTIMIZER_METHODS = ("grid", "bounded", "differential_evolution")
-
-# numpy 2 renamed trapz; keep working on both
 _trapezoid = getattr(np, "trapezoid", None) or np.trapz
 
 
 def cumulative_heat(t, Q):
-    """ Objective: cumulative heat extracted over the evaluation window
-
-    Parameters
-    ----------
-        t : numpy array
-            times [s], increasing
-
-        Q : numpy array
-            heat extraction rate at t [W]
-
-    Returns
-    -------
-        E : float
-            integral of Q over t [J]
-    """
+    """ Objective: heat extracted over the window, integral of Q dt [J] """
     return float(_trapezoid(Q, t))
 
 
 def time_to_drawdown(t, Q, fraction=0.9):
-    """ Objective: time until the heat rate falls to a fraction of its initial value
+    """ Objective: first time Q falls to fraction * Q[0] [s]
 
-    Parameters
-    ----------
-        t : numpy array
-            times [s], increasing
-
-        Q : numpy array
-            heat extraction rate at t [W]
-
-        fraction : float
-            drawdown threshold as a fraction of Q[0]. Default 0.9 (10 %
-            thermal decline).
-
-    Returns
-    -------
-        t_dd : float
-            first time at which Q <= fraction * Q[0], linearly
-            interpolated between samples [s]. If the threshold is not
-            reached inside the window, t[-1] is returned (censored).
-
-    Notes
-    -----
-        Use functools.partial(time_to_drawdown, fraction=0.8) to change
-        the threshold when passing this as an objective.
+    Linearly interpolated between samples; returns t[-1] if the threshold
+    is not reached. Use functools.partial to change fraction.
     """
     threshold = fraction * Q[0]
     below = np.nonzero(Q <= threshold)[0]
     if below.size == 0:
         return float(t[-1])
     i = below[0]
-    if i == 0:
-        return float(t[0])
-    # linear interpolation between the last sample above and first below
-    t0, t1 = t[i - 1], t[i]
-    Q0, Q1 = Q[i - 1], Q[i]
-    if Q0 == Q1:
-        return float(t1)
-    return float(t0 + (Q0 - threshold) / (Q0 - Q1) * (t1 - t0))
+    if i == 0 or Q[i - 1] == Q[i]:
+        return float(t[i])
+    return float(t[i - 1] + (Q[i - 1] - threshold) / (Q[i - 1] - Q[i]) * (t[i] - t[i - 1]))
 
 
-def optimize_spacing(bounds,
-                     m_dot,
-                     T_res,
-                     T_inj,
-                     rock_props,
-                     fluid_props,
-                     n_fractures,
-                     fracture_height,
-                     t_eval,
-                     heat_extraction=_default_backend,
-                     objective=cumulative_heat,
-                     method="grid",
-                     n_grid=25,
-                     spacings=None,
-                     seed=0,
-                     **backend_kwargs):
-    """ Find the fracture spacing that maximizes an objective of Q(t)
+def optimize_spacing(spacings, m_dot, T_res, T_inj, rock_props, fluid_props,
+                     n_fractures, fracture_height, t_eval,
+                     heat_extraction=mpf_gringarten.heat_extraction,
+                     objective=cumulative_heat, **backend_kwargs):
+    """ Find the candidate spacing that maximizes an objective of Q(t)
 
     Parameters
     ----------
-        bounds : tuple of float
-            (spacing_min, spacing_max) search range [m]
+        spacings : array_like
+            candidate spacings [m], e.g. np.geomspace(2, 200, 40) or
+            lateral_length / np.arange(2, 60) for integer stage counts
 
         m_dot, T_res, T_inj, rock_props, fluid_props, fracture_height, t_eval :
-            passed through to heat_extraction(), see
-            pydfnworks.thermal.mpf_gringarten.heat_extraction()
+            passed to heat_extraction()
 
         n_fractures : int or callable
-            fixed number of fractures, or a function n_fractures(spacing)
-            returning the number of fractures for a given spacing (for
-            example int(lateral_length // spacing) + 1 for stages placed
-            along a fixed lateral).
+            fixed count, or n_fractures(spacing) (e.g. lateral / spacing)
 
         heat_extraction : callable
-            backend with the pydfnworks.thermal heat_extraction()
-            signature. Default: the Phase 1 Gringarten surrogate. This is
-            the only place a backend is chosen.
+            backend with the pydfnworks.thermal signature. Default: the
+            Gringarten surrogate.
 
         objective : callable
             objective(t, Q) -> float, maximized. Default cumulative_heat.
 
-        method : str
-            "grid" (default; log-spaced grid of n_grid spacings),
-            "bounded" (scipy minimize_scalar, bounded Brent), or
-            "differential_evolution" (scipy, global). The scipy methods
-            evaluate the grid first and refine from it, so the objective
-            curve is always available in the result.
-
-        n_grid : int
-            number of grid spacings. Default 25.
-
-        spacings : array_like or None
-            explicit candidate spacings [m] used instead of the log-spaced
-            grid, for example lateral_length / n for integer stage counts
-            n. Values outside bounds are dropped. Default None.
-
-        seed : int
-            random seed for differential_evolution. Default 0.
-
         backend_kwargs :
-            keyword-only options forwarded to heat_extraction() (for
-            example fracture_width for the surrogate, or dfn and G for the
-            DFN backend)
+            forwarded to heat_extraction()
 
     Returns
     -------
         result : dict
-            "spacing"     best spacing found [m]
-            "objective"   objective value at the best spacing
-            "n_fractures" number of fractures at the best spacing
-            "Q"           heat extraction rate at the best spacing [W]
-            "t_eval"      times of Q [s]
-            "spacings"    every spacing evaluated, sorted [m]
-            "objectives"  objective at each of those spacings
-            "method"      optimizer method used
-            "scipy_result" scipy OptimizeResult for the scipy methods, else None
-
-    Notes
-    -----
-        The objective is treated as noise-free; the Phase 2 particle
-        backend will be stochastic, in which case "grid" or
-        "differential_evolution" are the appropriate choices.
+            "spacing", "n_fractures", "objective", "Q" (at the best
+            spacing), "t_eval", "spacings" and "objectives" (whole curve)
     """
-    if method not in OPTIMIZER_METHODS:
-        raise ValueError(
-            f"Unknown optimizer method '{method}'. Options: {OPTIMIZER_METHODS}")
-    lo, hi = float(bounds[0]), float(bounds[1])
-    if not (0 < lo < hi):
-        raise ValueError(f"bounds must satisfy 0 < spacing_min < spacing_max, got {bounds}")
-    if callable(n_fractures):
-        n_of = n_fractures
-    else:
-        n_of = lambda spacing: n_fractures
+    n_of = n_fractures if callable(n_fractures) else (lambda s: n_fractures)
     t = np.atleast_1d(np.asarray(t_eval, dtype=float))
+    spacings = np.sort(np.asarray(spacings, dtype=float).ravel())
+    counts = [int(n_of(s)) for s in spacings]
+    curves = [heat_extraction(s, m_dot, T_res, T_inj, rock_props, fluid_props,
+                              n, fracture_height, t, **backend_kwargs)
+              for s, n in zip(spacings, counts)]
+    objectives = np.array([objective(t, Q) for Q in curves])
+    i = int(np.argmax(objectives))
+    return {"spacing": float(spacings[i]), "n_fractures": counts[i],
+            "objective": float(objectives[i]), "Q": curves[i], "t_eval": t,
+            "spacings": spacings, "objectives": objectives}
 
-    history = {}
 
-    def evaluate(spacing):
-        spacing = float(spacing)
-        n = int(n_of(spacing))
-        Q = heat_extraction(spacing, m_dot, T_res, T_inj, rock_props,
-                            fluid_props, n, fracture_height, t,
-                            **backend_kwargs)
-        value = float(objective(t, Q))
-        history[spacing] = (value, n, Q)
-        return value
+def plot_optimization(result, filename, reference=None, seconds_per_year=None):
+    """ Two-panel figure: objective vs spacing, and Q(t) at the best spacing
 
-    # objective curve over the search range (also the starting point for
-    # the scipy refinements)
-    if spacings is None:
-        candidates = np.geomspace(lo, hi, int(n_grid))
-    else:
-        candidates = np.asarray(spacings, dtype=float).ravel()
-        candidates = candidates[(candidates >= lo) & (candidates <= hi)]
-        if candidates.size == 0:
-            raise ValueError("no candidate spacings fall inside bounds")
-    for spacing in candidates:
-        evaluate(spacing)
+    Parameters
+    ----------
+        result : dict
+            output of optimize_spacing()
 
-    scipy_result = None
-    if method == "bounded":
-        scipy_result = minimize_scalar(lambda x: -evaluate(x),
-                                       bounds=(lo, hi),
-                                       method="bounded")
-    elif method == "differential_evolution":
-        scipy_result = differential_evolution(lambda x: -evaluate(x[0]),
-                                              [(lo, hi)],
-                                              seed=seed,
-                                              polish=False,
-                                              tol=1e-6)
+        filename : str
+            figure file name
 
-    spacings = np.array(sorted(history))
-    objectives = np.array([history[s][0] for s in spacings])
-    best = spacings[np.argmax(objectives)]
-    value, n_best, Q_best = history[best]
-    return {
-        "spacing": float(best),
-        "objective": value,
-        "n_fractures": n_best,
-        "Q": Q_best,
-        "t_eval": t,
-        "spacings": spacings,
-        "objectives": objectives,
-        "method": method,
-        "scipy_result": scipy_result,
-    }
+        reference : tuple (label, Q) or None
+            an extra Q(t) curve on the same t_eval, e.g. the DFN-derived spacing
+
+        seconds_per_year : float or None
+            if given, the time axis is in years
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    t = result["t_eval"] / (seconds_per_year or 1.0)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
+    ax1.plot(result["spacings"], result["objectives"] / result["objectives"].max(),
+             color="#2a78d6", lw=2)
+    ax1.plot(result["spacing"], 1.0, "o", color="#2a78d6", ms=8, mec="white")
+    ax1.set_xscale("log")
+    ax1.set_xlabel("fracture spacing [m]")
+    ax1.set_ylabel("objective / max")
+    ax2.plot(t, result["Q"] / 1e6, color="#2a78d6", lw=2,
+             label=f"best: {result['spacing']:0.1f} m, n = {result['n_fractures']}")
+    if reference is not None:
+        ax2.plot(t, reference[1] / 1e6, color="#eb6834", lw=2, ls="--", label=reference[0])
+    ax2.set_xlabel("time [yr]" if seconds_per_year else "time [s]")
+    ax2.set_ylabel("heat extraction rate [MW]")
+    ax2.legend(frameon=False)
+    for ax in (ax1, ax2):
+        ax.grid(alpha=0.25)
+        ax.spines[["top", "right"]].set_visible(False)
+    fig.tight_layout()
+    fig.savefig(filename, dpi=150)
+    plt.close(fig)

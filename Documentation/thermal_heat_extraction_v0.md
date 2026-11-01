@@ -14,11 +14,11 @@ The subpackage lives at `pydfnworks/pydfnworks/thermal/` and is discovered by `f
 
 | Module | Role |
 |---|---|
-| `common.py` | argument validation shared by both backends (raises `ValueError`), representative granite and water property sets, `SECONDS_PER_YEAR` |
-| `mpf_gringarten.py` | Phase 1 surrogate: Laplace-domain solution, numerical inversion, `heat_extraction()`, `production_temperature()`, dimensionless groups |
+| `common.py` | `check_inputs()` shared by both backends (raises `ValueError`), representative granite and water property sets, `SECONDS_PER_YEAR` |
+| `mpf_gringarten.py` | Phase 1 surrogate: Laplace-domain solution, Stehfest inversion, `heat_extraction()`, dimensionless groups |
 | `dfn_heat.py` | Phase 2 backend: same positional signature, validation, `thermal_to_tdrw_parameters()`, `NotImplementedError` for the kernel |
-| `optimize_spacing.py` | `optimize_spacing()` over any backend, objectives `cumulative_heat()` and `time_to_drawdown()` |
-| `__init__.py` | `BACKENDS` registry, `get_backend()`, re-exports |
+| `optimize_spacing.py` | `optimize_spacing()` over any backend, objectives `cumulative_heat()` and `time_to_drawdown()`, `plot_optimization()` |
+| `__init__.py` | re-exports |
 
 Both backends implement
 
@@ -27,7 +27,7 @@ heat_extraction(spacing, m_dot, T_res, T_inj, rock_props, fluid_props,
                 n_fractures, fracture_height, t_eval) -> Q(t)  [W]
 ```
 
-with `rock_props = {"rho", "c", "k"}` and `fluid_props = {"rho", "c"}` in SI units, temperatures in degrees Celsius, and `t_eval` in seconds. Backend-specific arguments are keyword-only, so the nine positional arguments are the stable contract: the surrogate adds `fracture_width` (default equal to `fracture_height`, a square fracture), `method`, and `stehfest_n`; the DFN backend adds `dfn`, `G`, `nparticles`, `tdrw_model`, `initial_positions`, and pass-through keywords for `run_graph_transport()`. The optimizer receives the backend as a callable argument, and its only backend-specific line is that argument, which was confirmed by pointing it at the Phase 2 stub in the verification script and in both examples.
+with `rock_props = {"rho", "c", "k"}` and `fluid_props = {"rho", "c"}` in SI units, temperatures in degrees Celsius, and `t_eval` in seconds. Backend-specific arguments are keyword-only, so the nine positional arguments are the stable contract: the surrogate adds `fracture_width` (default equal to `fracture_height`, a square fracture); the DFN backend adds `dfn`, `G`, and pass-through keywords for `run_graph_transport()`. The produced temperature follows from $T_\mathrm{out} = T_\mathrm{inj} + \dot Q/(\dot m c_f)$. The optimizer receives the backend as a callable argument, and its only backend-specific line is that argument, which was confirmed by pointing it at the Phase 2 stub in the verification script and in both examples.
 
 ## 3. The Gringarten multiple parallel fractures model
 
@@ -96,7 +96,7 @@ T_{wD}(t_D) \approx \frac{\ln 2}{t_D}\sum_{i=1}^{N} V_i\, \bar T_{wD}\!\left(\fr
 V_i = (-1)^{i + N/2} \sum_{k = \lfloor (i+1)/2 \rfloor}^{\min(i, N/2)} \frac{k^{N/2}\,(2k)!}{(N/2 - k)!\,k!\,(k-1)!\,(i-k)!\,(2k-i)!},
 $$
 
-vectorized over the evaluation times so that a 361-point curve costs about 100 microseconds. The mpmath route is retained as `method="mpmath"` for cross-checks and is the only vendored GEOPHIRES-X logic; it sits behind `heat_extraction()` and can be replaced without touching callers.
+vectorized over the evaluation times so that a 361-point curve costs about 100 microseconds. The GEOPHIRES-X mpmath route is reproduced in the verification script as a cross-check and is not part of the package.
 
 The number of terms was chosen against a 40-digit de Hoog reference (mpmath) over $t_D \in [0.1\beta, 100\beta] \cup [10^{-2}, 10^{2}]$:
 
@@ -113,11 +113,10 @@ $N = 18$ is uniformly at least as accurate as 16 and is the default; 20 or more 
 
 ## 5. Verification
 
-The tests live in `pydfnworks/tests/thermal/`, following the existing pattern of standalone verify scripts with a `run_thermal_verification.py` runner (there is no pytest in the pydfnworks environment; the `test_*` functions also run under pytest if it is present). All 14 tests pass. The FORGE-representative parameters are granite ($\rho = 2750$ kg/m³, $c = 790$ J/kg/K, $k = 3.05$ W/m/K), water ($\rho = 1000$ kg/m³, $c = 4200$ J/kg/K), $\dot m = 60$ kg/s, $T_\mathrm{res} = 226$ °C, $T_\mathrm{inj} = 40$ °C, $n = 20$, $H = w = 60$ m.
+The tests live in `pydfnworks/tests/thermal/verify_thermal.py`, a standalone verify script in the repository's pattern (there is no pytest in the pydfnworks environment; the `test_*` functions also run under pytest if it is present). All 8 tests pass. The FORGE-representative parameters are granite ($\rho = 2750$ kg/m³, $c = 790$ J/kg/K, $k = 3.05$ W/m/K), water ($\rho = 1000$ kg/m³, $c = 4200$ J/kg/K), $\dot m = 60$ kg/s, $T_\mathrm{res} = 226$ °C, $T_\mathrm{inj} = 40$ °C, $n = 20$, $H = w = 60$ m.
 
 | Test | Result |
 |---|---|
-| Laplace limits $s\bar T_{wD} \to 1$ ($s \to 0$), $\bar T_{wD} \to 0$ ($s \to \infty$) | pass |
 | Wide-spacing asymptote ($D = 10^6$ m) vs Bödvarsson-Tsang erfc form, dimensional and dimensionless | max relative error 6e-6 and 2e-6 |
 | Close spacing (5 m) vs wide (100 m) at the same flow | never higher; 30-year cumulative heat ratio 0.069; time to 75 % decline 51 d vs 123 d; time to 10 % decline equal (4.6 d, single-fracture regime) |
 | Energy balance at $D = 2$ and 5 m over $6 t_p$ | cumulative heat / heat in place = 1.0001 and 0.9988 |
@@ -126,13 +125,13 @@ The tests live in `pydfnworks/tests/thermal/`, following the existing pattern of
 | Runtime, 361 times | 101 microseconds per call |
 | Shared validation, Phase 2 stub, TDRW mapping | 6 bad inputs rejected identically by both backends; stub raises `NotImplementedError` |
 | Finite spacing ($\beta = 1$): independent finite-difference solution of the coupled slab-conduction and fracture-advection equations (Crank-Nicolson in $x$, implicit wall coupling along $z$) vs Stehfest | max difference 9.1e-3 on a 50 x 100 grid, 4.6e-3 on 100 x 200, converging toward the inversion |
-| Optimizer objectives, grid, `bounded`, `differential_evolution`, candidate spacings, backend swap, argument errors | pass |
+| Optimizer objectives, candidate-spacing grid, stage-count coupling, backend swap | pass |
 
 No elementary closed form exists at finite $\beta$ (Gringarten et al. inverted Equation A17 numerically as well), so the finite-spacing check is the finite-difference solution of the governing equations of Section 3.2, which is independent of the Laplace transform, its inversion, and GEOPHIRES-X; together with the two closed-form limits and the energy balance this covers the whole $\beta$ range. The 10 % decline check is informative: the first 10 % of drawdown occurs in the single-fracture (erfc) regime before the slab depletion front is felt, so close and wide spacing coincide there, and the separation appears only at deep drawdown. The test asserts the 75 % point.
 
 ## 6. Spacing optimizer
 
-`optimize_spacing(bounds, m_dot, ..., t_eval, heat_extraction=..., objective=..., n_fractures=..., method=...)` evaluates the objective on a log-spaced grid (or on explicit candidate spacings) and, for `method="bounded"` or `"differential_evolution"`, refines from there with SciPy. Objectives are callables $f(t, \dot Q) \to$ scalar that are maximized; the two provided are the cumulative heat over the evaluation window and the time to a specified thermal drawdown,
+`optimize_spacing(spacings, m_dot, ..., t_eval, heat_extraction=..., objective=..., n_fractures=...)` evaluates the objective at every candidate spacing and keeps the best, which is all a one-dimensional objective costing 100 microseconds per evaluation needs, and it leaves the whole objective curve in the result. Objectives are callables $f(t, \dot Q) \to$ scalar that are maximized; the two provided are the cumulative heat over the evaluation window and the time to a specified thermal drawdown,
 
 $$
 E(T) = \int_0^{T} \dot Q(t)\,dt, \qquad
