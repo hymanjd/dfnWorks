@@ -251,9 +251,21 @@ def solve_flow_on_graph(G, pressure_in, pressure_out, fluid_viscosity, phi):
             H.edges[upstream, downstream]['vol_flow_rate'] = H.edges[
                 upstream, downstream]['weight'] * delta_p / fluid_viscosity
 
-            H.edges[upstream, downstream]['flux'] = H.edges[
+            # Darcy flux between the two intersections, and the flow-equivalent
+            # cross-section that carries vol_flow_rate at that flux. For 'karra'
+            # this is the geometric area (aperture x mean intersection length);
+            # for 'doolaeghe' it is aperture x the width implied by the
+            # conductance, so travel time and fracture-rock contact follow the
+            # flow model rather than an intersection-wide strip.
+            H.edges[upstream, downstream]['flux'] = (
+                H.edges[upstream, downstream]['perm'] / fluid_viscosity) * (
+                    delta_p / H.edges[upstream, downstream]['length'])
+
+            H.edges[upstream, downstream]['area_geometric'] = H.edges[
+                upstream, downstream]['area']
+            H.edges[upstream, downstream]['area'] = H.edges[
                 upstream, downstream]['vol_flow_rate'] / H.edges[upstream,
-                                                                downstream]['area']
+                                                                downstream]['flux']
 
             H.edges[upstream,
                     downstream]['velocity'] = H.edges[upstream,
