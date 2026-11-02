@@ -1,20 +1,15 @@
 """Typeset each equation with LaTeX (same MacTeX engine LaTeXiT drives) to a transparent PNG."""
 import subprocess, pathlib, json
 EQS = {
- "a17":   r"\bar T_{wD}(s) = \frac{1}{s}\exp\!\left[-\sqrt{s}\,\tanh\!\big(\beta\sqrt{s}\big)\right],\qquad T_{wD} = \frac{T_{\mathrm{res}}-T_{\mathrm{out}}}{T_{\mathrm{res}}-T_{\mathrm{inj}}},\qquad t_D = \frac{t}{t_s}",
- "beta":  r"\beta = \frac{(\rho c)_f\, Q_f\, D}{4\,k\,w\,H}",
- "ts":    r"t_s = \frac{4\,k\,(\rho c)_r\,(wH)^2}{\big[(\rho c)_f\,Q_f\big]^2}",
- "Q":     r"\dot Q(t) = \dot m\, c_f\,\big(T_{\mathrm{res}}-T_{\mathrm{inj}}\big)\big[1 - T_{wD}(t/t_s;\beta)\big]",
- "Qf":    r"Q_f = \dot m/(\rho_f\, n)",
- "erfc":  r"T_{wD} = \operatorname{erfc}\!\left(\frac{1}{2\sqrt{t_D}}\right)",
- "tp":    r"t_{\mathrm{piston}} = \beta\, t_s = \frac{(\rho c)_r\, n\, D\, w\, H}{(\rho c)_f\, \dot m/\rho_f}",
+ "map":   r"\phi_m \;\to\; \frac{(\rho c)_r}{(\rho c)_f},\qquad D_m \;\to\; \alpha = \frac{k}{(\rho c)_r}",
+ "betaP": r"\beta_p = \sum_{i\in\text{path}} \frac{2\,\tau_i}{b_i}",
+ "kern":  r"\widetilde{R}_p(s) = \exp\!\Big[-\phi_m\sqrt{D_m s}\;\beta_p\,\tanh\!\big(B\sqrt{s/D_m}\big)\Big]",
+ "F":     r"F(t) = \sum_p w_p\, T_{wD}\!\left(\frac{t-\tau_p}{t_{s,p}};\,\beta_{G,p}\right),\qquad t_{s,p} = \big(\phi_m\sqrt{D_m}\,\beta_p\big)^2,\qquad \beta_{G,p} = \frac{B}{\phi_m D_m \beta_p}",
+ "Tout":  r"T_{\mathrm{out}}(t) = T_{\mathrm{res}} - (T_{\mathrm{res}}-T_{\mathrm{inj}})\,F(t),\qquad \dot Q(t) = \dot m\, c_f\,(T_{\mathrm{res}}-T_{\mathrm{inj}})\,[1-F(t)]",
+ "slab":  r"\bar T_{wD}(u) = \frac{1}{u}\exp\!\big[-\sqrt{u}\,\tanh(\beta_G\sqrt{u})\big]",
+ "erfc":  r"T_{wD} \to \operatorname{erfc}\!\left(\frac{1}{2\sqrt{t_D}}\right)\ \ (\beta_G\to\infty)",
  "steh":  r"T_{wD}(t_D) \approx \frac{\ln 2}{t_D}\sum_{i=1}^{18} V_i\, \bar T_{wD}\!\left(\frac{i\ln 2}{t_D}\right)",
- "sig":   r"\texttt{heat\_extraction}(D,\ \dot m,\ T_{\mathrm{res}},\ T_{\mathrm{inj}},\ \text{rock},\ \text{fluid},\ n,\ H,\ t)\ \to\ \dot Q(t)",
- # white versions for the dark closing slide
- "w_tpL": r"t_p = \frac{(\rho c)_r\, L\, w\, H}{(\rho c)_f\, \dot m/\rho_f}",
- "w_phi": r"\phi_m \;\to\; \frac{(\rho c)_r}{(\rho c)_f} = 0.52",
- "w_D":   r"D_m \;\to\; \frac{k}{(\rho c)_r} = 1.4\times 10^{-6}\ \mathrm{m^2/s}",
- "w_gam": r"\gamma = \frac{2\,\phi_m D_m}{b\,\varepsilon\,B}",
+ "w_B":   r"B = D/2\ \text{everywhere, natural fractures included}",
 }
 out = pathlib.Path("eq"); out.mkdir(exist_ok=True)
 sizes = {}

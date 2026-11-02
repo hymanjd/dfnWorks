@@ -108,206 +108,165 @@ def footer(slide, dark=False):
         size=10, color=RGBColor(0xC8, 0xC9, 0xD4) if dark else MUTED)
 
 
+
+import csv
+DATA = "../../examples/thermal_dfn_dataset/output/dataset"  # run the example first
+rows = list(csv.DictReader(open(f"{DATA}/manifest.csv")))
+by_sp = {}
+for r in rows:
+    by_sp.setdefault(float(r["spacing"]), []).append(r)
+
 # ---------------------------------------------------------------- 1 title
 s = prs.slides.add_slide(BLANK)
+s.notes_slide.notes_text_frame.text = "A DFN-based heat-extraction dataset: dfnWorks generates networks with parallel hydraulic fractures at a chosen spacing, graph flow and transport give every flow path, and an analytic fracture-rock exchange kernel turns the paths into produced temperature and heat rate. Each sample is one HDF5 file for the ML team."
 rect(s, 0, 0, 13.333, 7.5, DARK)
 rect(s, 0.6, 2.2, 0.12, 2.1, EMBER)
-box(s, 0.95, 2.1, 11, 1.6, "Fracture spacing optimization with an analytic heat-extraction surrogate",
-    size=40, bold=True, font=HEAD, color=WHITE)
-box(s, 0.95, 3.75, 11, 0.6, "The Gringarten multiple-parallel-fracture model as a 100-microsecond objective inside a dfnWorks workflow",
-    size=18, color=RGBColor(0xE8, 0xA8, 0x7C), italic=True)
-s.notes_slide.notes_text_frame.text = "A new pydfnworks subpackage for heat extraction from fractured rock, built to sit inside a hydraulic-fracture spacing optimizer. Six slides: the interface, the model, the equations, the numerics and verification, the workflow on a FORGE-type network, and what the DFN-based backend has to add."
-box(s, 0.95, 5.6, 11, 0.8, ["pydfnworks.thermal  ·  branch feature/thermal-mpf-surrogate",
-                            "Jeffrey Hyman, EES-16, Los Alamos National Laboratory  ·  November 2026"],
-    size=14, color=RGBColor(0xC8, 0xC9, 0xD4))
+box(s, 0.95, 2.1, 11, 1.6, "A DFN heat-extraction dataset: produced temperature from fracture networks", size=40, bold=True, font=HEAD, color=WHITE)
+box(s, 0.95, 3.75, 11, 0.6, "Parallel hydraulic fractures at a chosen spacing, graph flow and transport, and an analytic fracture-rock exchange kernel, one HDF5 sample at a time", size=18, color=RGBColor(0xE8, 0xA8, 0x7C), italic=True)
+box(s, 0.95, 5.6, 11, 0.8, ["pydfnworks.thermal  ·  branch feature/thermal-mpf-surrogate (hymanjd/dfnWorks)", "Jeffrey Hyman, EES-16, Los Alamos National Laboratory  ·  November 2026"], size=14, color=RGBColor(0xC8, 0xC9, 0xD4))
 
-# ---------------------------------------------------------------- 2 problem + model sketch
+# ---------------------------------------------------------------- 2 pipeline
 s = prs.slides.add_slide(BLANK)
-s.notes_slide.notes_text_frame.text = """The question is how to space hydraulic fractures for heat extraction at a FORGE-type site. The answer has to come from an optimizer, and an optimizer needs an objective it can call thousands of times. The design separates the objective from the physics behind it: one function signature, heat_extraction, with two backends. The first is the Gringarten multiple-parallel-fracture model, analytic in the Laplace domain and inverted numerically, which costs about 100 microseconds per call and is complete and verified. The second is the dfnWorks graph-transport backend, which will use the DFN flow partition and connectivity; its interface and parameter mapping are in place and the kernel is deferred. The sketch on the right is the surrogate's world: n identical fractures a distance D apart, water flowing up each one, heat conducting in from the rock slab on either side. Equal flow in every fracture is the assumption the DFN backend will eventually relax."""
-title(s, "One interface, two backends")
-box(s, 0.6, 1.55, 5.9, 1.4, [
-    [("The question. ", {"bold": True}), ("How far apart should hydraulic fractures be spaced to maximize heat extracted from a FORGE-type enhanced geothermal reservoir?", {})],
-    [("The design. ", {"bold": True}), ("An optimizer calls one function, and two backends implement it:", {})],
-], size=15, spacing=10)
-eq(s, "sig", 0.8, 2.95, 1.45)
-box(s, 0.6, 3.45, 5.9, 3.3, [
-    [("Phase 1  ", {"bold": True, "color": GARNET}), ("Gringarten et al. (1975) multiple parallel fractures, inverted from the Laplace domain. Done, verified, ~100 μs per call.", {})],
-    [("Phase 2  ", {"bold": True, "color": GARNET}), ("dfnWorks graph transport with thermal TDRW parameters. Interface and parameter mapping in place; kernel deferred.", {})],
-    [("Why a surrogate first. ", {"bold": True}), ("The optimizer needs thousands of evaluations; a particle run costs seconds to minutes. The surrogate sets the interface and the baseline the DFN backend must beat.", {})],
-], size=15, spacing=10)
-
-# sketch: n parallel fractures with slabs
-x0, y0 = 7.2, 1.7
-box(s, x0, y0 - 0.1, 5.5, 0.4, "n parallel fractures, spacing D, in an infinite rock mass", size=12, color=MUTED, italic=True)
-rect(s, x0, y0 + 0.45, 5.5, 3.6, ROCK)
-nf = 4
-pitch = 5.5 / nf
-for i in range(nf):
-    fx = x0 + pitch * (i + 0.5)
-    rect(s, fx - 0.04, y0 + 0.45, 0.08, 3.6, GARNET)
-    # flow arrow up the fracture
-    a = s.shapes.add_shape(MSO_SHAPE.UP_ARROW, Inches(fx - 0.17), Inches(y0 + 1.5), Inches(0.34), Inches(1.4))
-    a.fill.solid(); a.fill.fore_color.rgb = EMBER; a.line.fill.background(); a.shadow.inherit = False
-    if i < nf - 1:
-        # conduction arrows from the slab into the fracture
-        for yy in (y0 + 1.0, y0 + 3.3):
-            c = s.shapes.add_shape(MSO_SHAPE.LEFT_RIGHT_ARROW, Inches(fx + 0.15), Inches(yy), Inches(pitch - 0.3), Inches(0.22))
-            c.fill.solid(); c.fill.fore_color.rgb = MUTED; c.line.fill.background(); c.shadow.inherit = False
-box(s, x0, y0 + 4.1, 1.6, 0.35, "T_inj in", size=12, bold=True, color=EMBER)
-box(s, x0 + 3.9, y0 + 0.05, 1.6, 0.35, "T_out", size=12, bold=True, color=EMBER, align=PP_ALIGN.RIGHT)
-box(s, x0 + pitch * 1.5 - 0.6, y0 + 4.1, 1.2, 0.35, "← D →", size=12, color=INK, align=PP_ALIGN.CENTER)
-box(s, x0 + 5.55, y0 + 2.0, 0.6, 0.5, "H", size=12, color=INK)
-box(s, x0, y0 + 4.55, 5.5, 0.9, "Each fracture draws on a slab of half-thickness D/2 by conduction normal to its plane; the slab mid-plane is insulated by symmetry. Equal flow in every fracture.",
-    size=11, color=MUTED)
+s.notes_slide.notes_text_frame.text = """The pipeline, left to right. dfnGen builds a network with two ingredients: parallel rectangular hydraulic fractures placed by the dataset helper at spacing D, spanning the block, and two stochastic natural fracture sets. Graph flow solves steady flow from the inflow face to the outflow face, so water enters every hydraulic fracture and flows along it, with the natural network cross-connecting the planes. Graph particle tracking, purely advective, records for every particle its advective travel time and the exchange integral beta, the sum over its edges of twice the residence time over the aperture. That pair is all the thermal model needs: the slab kernel with half-width D over 2 converts each path into a cooling curve, and the flux-weighted sum over particles is the cooled fraction of produced water. From that, T_out of t and Q dot of t. write_sample stores the inputs, the curves and the particle pairs in one HDF5 file and appends a manifest row. Nothing in the chain is meshed and no PFLOTRAN run is needed, so a sample costs seconds."""
+title(s, "Pipeline: from a DFN to one dataset sample")
+LIGHT = RGBColor(0xF4, 0xEF, 0xE8); TINT = RGBColor(0xFB, 0xF1, 0xEC)
+for x, w, text in ((0.6, 3.0, "dfnWorks, existing"), (4.4, 3.6, "pydfnworks.thermal, new"), (9.2, 3.5, "Sample for the ML team")):
+    box(s, x, 1.35, w, 0.3, text, size=12, bold=True, color=GARNET)
+ax, aw, ah = 0.6, 3.0, 0.95
+node(s, ax, 1.75, aw, ah, "dfnGen", "parallel hydraulic fractures at spacing D (user rectangles) + natural TPL sets; seed", fill=LIGHT)
+node(s, ax, 3.0, aw, ah, "dfnGraph flow", "run_graph_flow, inflow to outflow face, at the drop that gives the target m_dot: flow graph G, dQ", fill=LIGHT)
+node(s, ax, 4.25, aw, ah, "dfnGraph transport", "run_graph_transport, advective: per particle tau and beta = sum 2 tau_i / b_i", fill=LIGHT)
+for y in (2.7, 3.95):
+    arrow(s, ax + aw / 2, y, ax + aw / 2, y + 0.3)
+bx, bw = 4.4, 3.6
+node(s, bx, 1.75, bw, 0.95, "Inputs", "spacing D, seed, permeabilities, target m_dot, T_res, T_inj, rock and fluid properties, t_eval", fill=WHITE)
+node(s, bx, 3.0, bw, 0.95, "Dataset helpers", "add_hydraulic_fractures: floor(L/D) rectangles spanning the block; graph_flow_for_rate: the drop that delivers m_dot", fill=TINT, line=GARNET, head_color=GARNET)
+node(s, bx, 4.25, bw, 1.25, "heat_extraction()", "slab kernel, B = D/2, per particle; F(t) = flux-weighted cooled fraction; T_out(t), Q(t) with m_dot from the graph flow", fill=TINT, line=GARNET, head_color=GARNET)
+node(s, bx, 5.8, bw, 0.8, "write_sample(), append_manifest()", "HDF5 + manifest.csv", fill=TINT, line=GARNET, head_color=GARNET)
+arrow(s, bx + bw / 2, 2.7, bx + bw / 2, 3.0)
+arrow(s, bx + bw / 2, 5.5, bx + bw / 2, 5.8)
+arrow(s, bx, 3.47, ax + aw, 2.3)
+tag(s, ax + aw + 0.05, 2.55, 0.8, "rectangles")
+arrow(s, ax + aw, 4.72, bx, 4.72)
+tag(s, ax + aw + 0.05, 4.42, 0.8, "tau, beta")
+arrow(s, ax + aw, 3.47, bx - 0.02, 4.3)
+tag(s, ax + aw + 0.05, 3.55, 0.8, "G")
+cx, cw = 9.2, 3.5
+node(s, cx, 1.75, cw, 2.5, "spacing_<D>_seed_<s>.h5", ["inputs/: spacing, seed, k, pressures, T, properties, fracture count, p32, dQ (attrs)", "curves/: t_eval, F, T_out, Q", "particles/: advect_time, beta", "attrs: m_dot, flow_rate, n_exit, n_stuck"], fill=LIGHT)
+node(s, cx, 4.5, cw, 1.1, "manifest.csv", "one row per sample: inputs and headline outputs (pressure drop, Q(0), Q(30 yr), T_out(30 yr))", fill=LIGHT)
+arrow(s, bx + bw, 6.2, cx + cw / 2, 6.2)
+arrow(s, cx + cw / 2, 6.2, cx + cw / 2, 5.6)
+box(s, 0.6, 6.75, 12.1, 0.3, "No meshing, PFLOTRAN or FEHM: a sample takes seconds, so spacings, seeds, permeabilities and intensities can be swept freely.", size=11, italic=True, color=MUTED)
 footer(s)
 
-# ---------------------------------------------------------------- 3 equations
+# ---------------------------------------------------------------- 3 physics
 s = prs.slides.add_slide(BLANK)
-s.notes_slide.notes_text_frame.text = """Everything in the surrogate follows from Equation A17 of Gringarten, Witherspoon and Ohnishi. In the Laplace domain the outlet drawdown is an exponential of root s times a hyperbolic tangent; the tanh is the finite slab. Two groups carry all the physics. The spacing parameter beta is the slab half-width in units of the conduction length set by the flow rate, so it is proportional to spacing times flow per fracture over conductivity and fracture area. The time scale t_s makes the dimensionless time. The heat rate is just mass flow times heat capacity times the available temperature drop, times one minus the drawdown. The two limits on the right are what the tests check. When beta is large the tanh goes to one and the inverse is the classic erfc solution for a single fracture between semi-infinite rock. When beta is small the response is a step at t_D equals beta, which in dimensional terms is the piston time: the heat in the slabs divided by the heat-capacity flow of the water. That piston time is the quantity that makes the optimization answer monotone, which comes up on the last slide."""
-title(s, "The surrogate: Laplace solution and dimensionless groups")
-rect(s, 0.6, 1.5, 12.1, 1.25, ROCK)
-box(s, 0.9, 1.58, 11.5, 0.3, "Outlet drawdown, Laplace domain (Gringarten et al. 1975, Eq. A17)", size=13, color=MUTED)
-eq(s, "a17", 0.9, 1.95, 1.8)
-y = 3.05
-for label, name in (("Spacing parameter", "beta"), ("Time scale", "ts"), ("Heat rate", "Q")):
-    box(s, 0.6, y, 6.0, 0.3, label, size=14, bold=True, color=GARNET)
-    y += 0.34 + eq(s, name, 0.7, y + 0.32, 1.7) + 0.12
-h = eq(s, "Qf", 0.7, y + 0.08, 1.4)
-box(s, 0.6, y + 0.1 + h + 0.05, 6.0, 0.6, "Q_f is the flow per fracture; H, w the fracture height (flow direction) and width; k, (ρc)_r rock conductivity and heat capacity.", size=12, color=MUTED)
-x = 7.0
-box(s, x, 3.05, 5.7, 0.3, "Two limits anchor the model", size=14, bold=True, color=GARNET)
-box(s, x, 3.5, 5.7, 0.3, [[("β → ∞, wide spacing: ", {"bold": True}), ("semi-infinite single fracture (Lauwerier 1955; Bödvarsson and Tsang 1982)", {})]], size=13)
-h = eq(s, "erfc", x + 0.1, 3.95, 1.9)
-box(s, x, 3.95 + h + 0.3, 5.7, 0.3, [[("β → 0, close spacing: ", {"bold": True}), ("a step at t_D = β, the piston displacement of the slab", {})]], size=13)
-h2 = eq(s, "tp", x + 0.1, 3.95 + h + 0.7, 1.9)
-box(s, x, 3.95 + h + 0.7 + h2 + 0.2, 5.7, 0.7, "the heat stored in the n slabs divided by the heat-capacity flow of the water. Both limits are closed-form checks on the numerical inversion.", size=12, color=MUTED)
+s.notes_slide.notes_text_frame.text = """The physics is heat treated as a solute. Dividing the fluid energy balance by the fluid heat capacity puts the thermal problem in the solute form with two substitutions: the matrix porosity becomes the rock-to-fluid volumetric heat capacity ratio, about one half for granite and water, and the matrix diffusivity becomes the rock thermal diffusivity. Graph particle tracking already accumulates, for every particle, the exchange integral beta, twice the residence time over the aperture summed along the path; it does this whether or not TDRW is on. For rock slabs of one half-width B everywhere, the thermal retention of a whole path has a closed Laplace transform, the compound-Poisson limit of the finite-slab TDRW model, and that is the Tang, Frind and Sudicky kernel, the same mathematics as Gringarten's parallel-fracture solution. Rescaled, it is the slab drawdown T_wD evaluated at the particle's own time scale and its own beta_G, so every particle contributes a known cooling curve starting at its advective arrival time. The flux-weighted sum over particles is the cooled fraction F of t, and the produced temperature and heat rate follow, with the mass flow rate the graph flow actually delivers. Two consequences: the result is deterministic given the particle set, with no extra Monte Carlo noise from thermal sampling, and the flow partition among fractures, which the old equal-flow surrogate assumed away, comes straight from the DFN."""
+title(s, "Heat as a solute: each flow path carries its own cooling curve")
+cols = ((0.6, (("Thermal to TDRW parameter mapping", "map", 1.5),
+               ("Exchange integral the tracker accumulates along a path", "betaP", 1.5),
+               ("Thermal retention of a path between slabs of half-width B (Laplace domain)", "kern", 1.5))),
+        (6.9, (("Cooled fraction of produced water, flux-weighted over particles", "Fsum", 1.5),
+               ("Per-particle time scale and slab parameter", "scales", 1.5),
+               ("Produced temperature", "Tout1", 1.5),
+               ("Heat extraction rate", "Qdot", 1.5))))
+for x, items in cols:
+    y = 1.5
+    for head, name, scale in items:
+        box(s, x, y, 5.9, 0.3, head, size=13, bold=True, color=GARNET)
+        y += 0.34 + eq(s, name, x + 0.2, y + 0.32, scale) + 0.2
+box(s, 0.6, 6.3, 12.0, 0.5, "B -> inf recovers Lauwerier; tau_i, b_i are edge residence time and aperture; w_p are flux weights (equal for flux-weighted release); m_dot = rho_f times the graph flow rate.", size=11, color=MUTED)
 footer(s)
 
-# ---------------------------------------------------------------- 4 inversion + verification
+# ---------------------------------------------------------------- 4 kernel + verification
 s = prs.slides.add_slide(BLANK)
-s.notes_slide.notes_text_frame.text = """The inversion is Gaver-Stehfest with 18 terms, the same routine the dfnWorks TDRW slab models already use, vectorized so that a full 30-year curve costs about 100 microseconds. GEOPHIRES-X inverts the same expression with mpmath at 15 digits and takes about a second, which is fine for a single reservoir run and useless inside an optimizer. The term count was chosen against a 40-digit de Hoog reference; 18 is uniformly at least as good as 16, and 20 or more loses accuracy in double precision. The curves show the family: close spacing, small beta, holds the full rate and then collapses; wide spacing follows the erfc decline from the start. The table is the verification. The erfc limit is matched to six parts in a million. The energy balance at close spacing closes to a tenth of a percent. The mpmath route agrees to one part in ten thousand. And because there is no closed form at finite beta, there is a finite-difference solution of the slab conduction and fracture advection equations that never touches the Laplace transform; it converges toward the inverted solution on grid refinement. Together those cover the whole beta range."""
-title(s, "Inverted in double precision, verified four independent ways")
-s.shapes.add_picture("drawdown_curves.png", Inches(0.6), Inches(1.6), width=Inches(6.4))
-box(s, 0.6, 5.3, 6.4, 0.3, "Gaver-Stehfest inversion, 18 terms, vectorized over time", size=14, bold=True)
-eq(s, "steh", 0.7, 5.65, 1.7)
-box(s, 4.6, 5.65, 2.4, 1.0, "Shares the routine of the dfnWorks TDRW slab models. 361 points in ~100 μs; the GEOPHIRES-X mpmath route takes ~1 s.", size=11, color=MUTED)
-rows = [("Check", "Reference", "Result"),
-        ("Wide spacing, β = 3·10⁵", "erfc closed form", "max error 6·10⁻⁶"),
-        ("Close spacing, β = 0.6 and 1.4", "energy balance, heat in slabs", "1.0001 and 0.9988"),
-        ("β = 0.5, 1.5, 6", "GEOPHIRES-X mpmath Stehfest", "≤ 1·10⁻⁴"),
-        ("Finite spacing, β = 1", "finite-difference solution of the PDEs", "9·10⁻³ → 5·10⁻³ on refinement"),
-        ("Close vs wide, same flow", "physics", "never more heat; 75 % drawdown at 51 vs 123 d")]
-tx, ty = 7.3, 1.65
-tbl = s.shapes.add_table(len(rows), 3, Inches(tx), Inches(ty), Inches(5.45), Inches(3.3)).table
-tbl.columns[0].width, tbl.columns[1].width, tbl.columns[2].width = Inches(1.75), Inches(1.9), Inches(1.8)
-for i, row in enumerate(rows):
+s.notes_slide.notes_text_frame.text = """The slab drawdown kernel is inverted numerically with Gaver-Stehfest, 18 terms, vectorized over particles and times, using the routine the dfnWorks TDRW models already share. The curves show the family: close spacing, small beta_G, holds the full rate and then collapses once the slab is exhausted; wide spacing follows the single-fracture erfc decline. The verification has six parts and all pass. The erfc limit is matched exactly and the piston limit closes the heat balance to two parts in ten thousand. A finite-difference solution of the slab conduction and fracture advection equations, which never sees the Laplace transform, converges to the inverted kernel on grid refinement. A single synthetic path with infinite rock reproduces Lauwerier's closed form to machine precision, and with finite slabs reproduces the kernel. Twenty thousand draws from the graph-transport infinite-matrix TDRW sampler give an empirical CDF within one percent of the analytic breakthrough for the same edge, which ties the new kernel to the existing particle code. Superposition and the HDF5 round trip are checked as well."""
+title(s, "Slab kernel: Stehfest inversion, verified six ways")
+s.shapes.add_picture("drawdown_curves.png", Inches(0.6), Inches(1.5), width=Inches(6.2))
+box(s, 0.6, 5.15, 6.2, 0.3, "Gaver-Stehfest, 18 terms, vectorized over particles and times", size=13, bold=True)
+h = eq(s, "slab", 0.7, 5.5, 1.5)
+eq(s, "steh", 0.7, 5.5 + h + 0.12, 1.35)
+eq(s, "erfc", 4.4, 5.55, 1.35)
+rows_v = [("Check", "Reference", "Result"),
+          ("beta_G -> inf; beta_G = 0.3", "erfc; piston heat balance", "exact; 1.0002"),
+          ("beta_G = 1", "finite-difference PDE solution", "9e-3 -> 5e-3 on refinement"),
+          ("single path, infinite rock", "Lauwerier closed form", "1e-16"),
+          ("single path, B = 5 m", "slab kernel", "exact"),
+          ("one edge, 20000 draws", "TDRW infinite-matrix sampler (Monte Carlo)", "0.008"),
+          ("two weighted paths; HDF5", "superposition; round trip", "pass")]
+tx, ty = 7.3, 1.55
+tbl = s.shapes.add_table(len(rows_v), 3, Inches(tx), Inches(ty), Inches(5.45), Inches(3.4)).table
+tbl.columns[0].width, tbl.columns[1].width, tbl.columns[2].width = Inches(1.75), Inches(2.1), Inches(1.6)
+for i, row in enumerate(rows_v):
     for j, val in enumerate(row):
-        cell = tbl.cell(i, j)
-        cell.text = ""
-        p = cell.text_frame.paragraphs[0]
-        r = p.add_run(); r.text = val
+        cell = tbl.cell(i, j); cell.text = ""
+        r = cell.text_frame.paragraphs[0].add_run(); r.text = val
         r.font.size = Pt(11 if i else 12); r.font.name = BODY
         r.font.bold = (i == 0); r.font.color.rgb = WHITE if i == 0 else INK
         cell.fill.solid(); cell.fill.fore_color.rgb = GARNET if i == 0 else (WHITE if i % 2 else ROCK)
-        cell.margin_left = cell.margin_right = Inches(0.06)
-        cell.margin_top = cell.margin_bottom = Inches(0.04)
-box(s, tx, 5.2, 5.45, 1.4, [
-    [("No closed form exists at finite β", {"bold": True}), (", so the general case is checked against a finite-difference solution of the slab conduction and fracture advection equations that never sees the Laplace transform. The erfc limit, the energy balance and the finite-difference run together cover the whole β range.", {})],
-], size=13)
+        cell.margin_left = cell.margin_right = Inches(0.06); cell.margin_top = cell.margin_bottom = Inches(0.04)
+box(s, tx, 5.3, 5.45, 1.3, [[("The TDRW check matters most: ", {"bold": True}), ("the analytic kernel reproduces what the particle tracker's own matrix-diffusion sampler would do, without sampling. The finite-slab TDRW models remain unusable at thermal diffusivity (10^7 events per particle); the kernel replaces them.", {})]], size=12)
 footer(s)
 
-# ---------------------------------------------------------------- 5 workflow + result
+# ---------------------------------------------------------------- 5 dataset status
 s = prs.slides.add_slide(BLANK)
-s.notes_slide.notes_text_frame.text = """The workflow is the point of putting this inside pydfnworks rather than in a standalone script. dfnWorks generates a FORGE-representative network, the well package places an injection lateral and a production lateral and reports which fractures each cuts, and from that the surrogate gets its geometry: the fracture count, the mean diameter as the fracture height, and the lateral length. The optimizer then evaluates candidate spacings L over n for integer stage counts. The figure is the run as committed. On the left, 30-year cumulative heat against spacing for stages filling the lateral: it is flat near the closest spacing and falls off above about 20 meters, so the best is the closest allowed, 7.7 meters and 78 stages, 11.6 petajoules. On the right, the heat rate at that spacing holds 15.6 megawatts for 18 years and then drops as the slabs run out, while the spacing the DFN itself implies, 150 meters and five fractures, declines from the first day and extracts about half as much. Swapping the DFN backend in is one argument to the optimizer."""
-title(s, "Workflow: DFN geometry in, surrogate objective out")
-steps = [("1", "Generate", "FORGE-representative DFN: 600 m granitoid block, a set parallel to the hydraulic fractures and a natural set"),
-         ("2", "Wells", "Injection and production laterals placed with the well package; fractures each cuts are listed"),
-         ("3", "Geometry", "n = fractures cut by the injector, H = their mean diameter, L = lateral length. Here n = 5, H = 219 m, L = 600 m"),
-         ("4", "Optimize", "optimize_spacing() over candidates L/n, objective = 30-year cumulative heat, 20 kg/s, 226 °C reservoir, 40 °C injection")]
-for i, (num, head, text) in enumerate(steps):
-    y = 1.6 + i * 1.25
-    c = rect(s, 0.6, y, 0.55, 0.55, GARNET, shape=MSO_SHAPE.OVAL)
-    box(s, 0.6, y + 0.1, 0.55, 0.4, num, size=16, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
-    box(s, 1.35, y - 0.02, 4.2, 0.4, head, size=16, bold=True, color=DARK)
-    box(s, 1.35, y + 0.36, 4.2, 0.9, text, size=12, color=INK)
-s.shapes.add_picture("forge_result.png", Inches(5.9), Inches(1.6), width=Inches(6.9))
-box(s, 5.9, 4.45, 6.9, 2.3, [
-    [("Read the result. ", {"bold": True}), ("Left: 30-year heat vs spacing for stages filling the lateral, best at the closest allowed spacing (7.7 m, 78 stages, 11.6 PJ). Right: the heat rate at that spacing holds 15.6 MW for 18 years and then collapses as the slabs deplete, while the DFN-implied 150 m spacing (5 fractures, 6.4 PJ) declines from day one.", {})],
-    [("Same optimizer, other backend. ", {"bold": True}), ("Pointing heat_extraction at the DFN backend changes one argument; it raises NotImplementedError until the kernel lands.", {})],
-], size=13, spacing=6)
+s.notes_slide.notes_text_frame.text = """Where the example stands. The driver runs end to end: a 400 by 200 by 200 meter block, hydraulic fractures normal to y spanning the block, two natural sets, flow left to right at a target 10 kilograms per second with the pressure drop solved for, spacings 10 to 80 meters and two seeds. Six of eight samples wrote their HDF5 files; the table shows the fracture counts and the pressure drops, which scale as expected with fewer fractures. But the produced temperature stays at the reservoir value for the full 30 years in every sample, and that is a defect, not a result. The particle exchange integral beta is about fifty times the parallel-plate value: the pipe-network edges carry flow through an area of aperture times roughly 40 meters, not the full 200 meter fracture height, and detours through micron-aperture natural fractures add more, so the thermal time scale comes out at millions of years. The fix is to evaluate beta at the fracture level from the per-fracture flow partition, or to correct the edge widths, and then to re-verify on a one-fracture DFN against Lauwerier. The second defect is connectivity at 80 meter spacing, where dfnGen's largest-cluster removal left three fractures and graph flow had no inlet. Both are recorded in Documentation/thermal_status.md with the numbers."""
+title(s, "Example status: pipeline runs, two defects to fix")
+box(s, 0.6, 1.5, 6.0, 2.1, [
+    [("Design. ", {"bold": True}), ("400 x 200 x 200 m block; hydraulic fractures normal to y spanning x and z, k = 1e-8 m^2; two natural TPL sets 20 to 60 m, p32 0.02 each, k = 1e-12 m^2; flow left to right at a target 10 kg/s (pressure drop solved for); 10^4 particles; 30-year window.", {})],
+    [("Sweep. ", {"bold": True}), ("D = 10, 20, 40, 80 m x seeds 1, 2. Six of eight samples written; the 80 m seed-1 sample failed in dfnGen.", {})],
+], size=12, spacing=6)
+rows_t = [("D [m]", "n_hf", "fractures", "dp [kPa]", "n_exit", "T_out(30 yr) [C]")]
+for d, rs in sorted(by_sp.items()):
+    rows_t.append((f"{d:g}", rs[0]["n_hydraulic"], "/".join(r["num_fractures"] for r in rs),
+                   "/".join(f"{float(r['pressure_drop_Pa'])/1e3:.1f}" for r in rs),
+                   "/".join(r["n_exit"] for r in rs),
+                   "/".join(f"{float(r['T_out_30yr']):.0f}" for r in rs)))
+tbl = s.shapes.add_table(len(rows_t), 6, Inches(0.6), Inches(3.75), Inches(6.0), Inches(1.6)).table
+for j, w in enumerate((0.7, 0.7, 1.1, 1.1, 1.2, 1.2)):
+    tbl.columns[j].width = Inches(w)
+for i, row in enumerate(rows_t):
+    for j, val in enumerate(row):
+        cell = tbl.cell(i, j); cell.text = ""
+        r = cell.text_frame.paragraphs[0].add_run(); r.text = val
+        r.font.size = Pt(10); r.font.name = BODY; r.font.bold = (i == 0)
+        r.font.color.rgb = WHITE if i == 0 else INK
+        cell.fill.solid(); cell.fill.fore_color.rgb = GARNET if i == 0 else (WHITE if i % 2 else ROCK)
+        cell.margin_left = cell.margin_right = Inches(0.05); cell.margin_top = cell.margin_bottom = Inches(0.03)
+box(s, 0.6, 5.45, 6.0, 0.4, "seed 1 / seed 2 per cell; dp is the pressure drop that delivers 10 kg/s", size=10, italic=True, color=MUTED)
+x = 7.0
+rect(s, x, 1.5, 5.7, 5.1, TINT, line=GARNET, shape=MSO_SHAPE.ROUNDED_RECTANGLE).adjustments[0] = 0.04
+box(s, x + 0.3, 1.65, 5.1, 0.35, "Defect 1: exchange integral 50x too large", size=14, bold=True, color=GARNET)
+box(s, x + 0.3, 2.05, 5.1, 1.9, [
+    [("Parallel-plate estimate at D = 10 m: beta = 2LH/Q_f = 3.2e8 s/m, slab piston time ~26 yr. Stored particles: median beta 1.6e10 s/m, median beta_G 4e-4, median t_s 3e6 yr, so no cooling in 30 yr.", {})],
+    [("Cause: pipe-network edges carry flow through b x ~40 m (median edge area 1.4e-2 m^2), not the 200 m fracture height; micron-aperture natural detours add more.", {})],
+    [("Fix: fracture-level beta from the per-fracture flow partition along frac_seq, or corrected edge widths; re-verify on a one-fracture DFN against Lauwerier.", {"bold": True})],
+], size=11, spacing=4)
+box(s, x + 0.3, 4.15, 5.1, 0.35, "Defect 2: connectivity at wide spacing", size=14, bold=True, color=GARNET)
+box(s, x + 0.3, 4.55, 5.1, 1.0, [
+    [("At D = 80 m dfnGen's largest-cluster removal kept 3 of 133 fractures and graph flow found no inlet nodes. Guarantee connectivity (natural intensity or size), or catch and skip the sample.", {})],
+], size=11, spacing=4)
+box(s, x + 0.3, 5.65, 5.1, 0.8, "Not a cause: the Stehfest kernel reproduces the step at t_D = beta_G within 0.1 down to beta_G = 0.02. Details and numbers: Documentation/thermal_status.md.", size=11, italic=True, color=MUTED)
 footer(s)
 
-# ---------------------------------------------------------------- 6 flow chart
+# ---------------------------------------------------------------- 6 limits + next
 s = prs.slides.add_slide(BLANK)
-s.notes_slide.notes_text_frame.text = """This slide answers where dfnWorks sits in the loop. The left column is existing dfnWorks: dfnGen generates the network, the well package places the laterals and reports which fractures each cuts, graph flow solves steady flow between the wells on the intersection graph, and graph transport tracks particles on that flow graph. The middle column is the new package. The surrogate needs only a handful of numbers from the DFN: the number of fractures the injector cuts or that sit on the inflow face, their mean diameter as the fracture height, the lateral length, and optionally the mass flow rate the network actually carries and the 1 over dQ spacing from the flow solution. Those feed the optimizer together with the reservoir and operating inputs. The optimizer calls heat_extraction once per candidate spacing and gets Q dot of t back; with the Phase 1 backend that is the analytic surrogate and nothing else from dfnWorks is touched. The Phase 2 backend takes the flow graph and the thermally retarded arrival times from graph transport instead; its interface exists and it raises NotImplementedError today. The outputs on the right are the same in both cases: the best spacing and stage count, the objective curve, the heat rate at the best spacing, and the figure and CSV files."""
-title(s, "Where dfnWorks enters: inputs and outputs")
-LIGHT = RGBColor(0xF4, 0xEF, 0xE8)
-TINT = RGBColor(0xFB, 0xF1, 0xEC)
-# column headers
-for x, w, text in ((0.6, 3.0, "dfnWorks, existing"), (4.4, 3.6, "pydfnworks.thermal, new"), (9.2, 3.5, "Outputs")):
-    box(s, x, 1.35, w, 0.3, text, size=12, bold=True, color=GARNET)
-# --- column A: dfnWorks
-ax, aw, ah = 0.6, 3.0, 0.95
-node(s, ax, 1.75, aw, ah, "dfnGen: DFN generation", "fracture radii, normals, centers; p32", fill=LIGHT)
-node(s, ax, 3.0, aw, ah, "Well package", "inject / produce laterals; fractures each well cuts", fill=LIGHT)
-node(s, ax, 4.25, aw, ah, "dfnGraph flow", "run_graph_flow: flow graph G between wells; per-fracture flow, total rate, dQ", fill=LIGHT)
-node(s, ax, 5.5, aw, ah, "dfnGraph transport", "run_graph_transport, TDRW with thermal parameters: particle arrival times", fill=LIGHT)
-for y in (2.7, 3.95, 5.2):
-    arrow(s, ax + aw / 2, y, ax + aw / 2, y + 0.3)
-# --- column B: thermal
-bx, bw = 4.4, 3.6
-node(s, bx, 1.75, bw, 0.95, "Reservoir and operating inputs", "T_res, T_inj, rock and fluid properties, mass flow (design value or graph flow), project life t_eval, objective, candidate spacings", fill=WHITE)
-node(s, bx, 3.0, bw, 0.95, "+ geometry from the DFN", "n = fractures cut by the injector or on the inflow face; H = mean diameter; L = lateral length; candidates D = L/n; 1/dQ as reference spacing", fill=WHITE)
-node(s, bx, 4.25, bw, 0.95, "optimize_spacing()", "for each candidate D: Q(t) = heat_extraction(D, m, T_res, T_inj, rock, fluid, n, H, t); keep the best objective(t, Q)", fill=TINT, line=GARNET, head_color=GARNET)
-node(s, bx, 5.5, 1.7, 1.0, "Phase 2: DFN", "dfn_heat backend; stub, raises NotImplementedError", fill=WHITE, dashed=True, head_color=MUTED, body_color=MUTED)
-node(s, bx + 1.9, 5.5, 1.7, 1.0, "Phase 1: surrogate", "mpf_gringarten; ~100 μs per call", fill=TINT, line=GARNET, head_color=GARNET)
-# vertical arrows in column B
-arrow(s, bx + bw / 2, 2.7, bx + bw / 2, 3.0)
-arrow(s, bx + bw / 2, 3.95, bx + bw / 2, 4.25)
-arrow(s, bx + 0.85, 5.2, bx + 0.85, 5.5, both=True)
-arrow(s, bx + 2.75, 5.2, bx + 2.75, 5.5, both=True)
-tag(s, bx + 1.0, 5.22, 1.6, "D, n down; Q(t) up", align=PP_ALIGN.CENTER)
-# dfnWorks -> thermal
-arrow(s, ax + aw, 3.47, bx, 3.47)
-tag(s, ax + aw + 0.05, 3.18, 0.8, "n, H, L")
-arrow(s, ax + aw, 4.6, bx - 0.02, 3.8)
-tag(s, ax + aw + 0.05, 4.65, 0.9, "m, dQ, n")
-arrow(s, ax + aw, 6.0, bx, 6.0)
-tag(s, ax + aw + 0.05, 6.05, 0.8, "G, arrival times")
-# thermal -> outputs
-cx, cw = 9.2, 3.5
-node(s, cx, 4.25, cw, 2.25, "Outputs", ["best spacing and stage count", "objective vs spacing (every candidate)", "Q(t) at the best spacing", "spacing_optimization.png, objective_vs_spacing.csv, heat_rate_best.csv"], fill=LIGHT)
-arrow(s, bx + bw, 4.72, cx, 4.72)
-arrow(s, bx + bw, 6.0, cx, 6.0)
-tag(s, bx + bw + 0.05, 4.45, 1.1, "best D, curve")
-tag(s, bx + bw + 0.05, 6.05, 1.1, "Q(t)")
-box(s, 0.6, 6.65, 12.1, 0.3, "Phase 1 reads geometry from dfnWorks and nothing else; Phase 2 will consume the flow graph and the arrival times. The optimizer and the outputs are the same in both cases.", size=11, italic=True, color=MUTED)
-footer(s)
-
-# ---------------------------------------------------------------- 7 findings
-s = prs.slides.add_slide(BLANK)
-s.notes_slide.notes_text_frame.text = """Three things to take away. First, with the surrogate alone the objective is monotone in spacing, and that is physics, not a weakness of the optimizer: with stages filling a fixed lateral at fixed flow, n times D is the lateral length, so the piston time does not depend on spacing at all and the closest spacing always approximates the ideal piston front best. At fixed fracture count the widest spacing wins because it adds rock. An interior optimum needs something the surrogate does not contain, either a cost per stage or the DFN flow partition. Second, heat is a solute with two coefficient substitutions: matrix porosity becomes the rock-to-fluid heat capacity ratio, about one half, and matrix diffusivity becomes the rock thermal diffusivity. With those, run_graph_transport already runs a thermal problem; the infinite-matrix model handled ten thousand particles in two seconds. Third, the finite-slab sampler cannot be reused as is. It samples excursions event by event at a rate proportional to porosity times diffusivity, which is ten million times larger for heat, so a single particle took minutes. The Phase 2 kernel has to draw the whole slab retention time per edge. That, plus the arrival-time to heat-rate conversion, is the remaining work."""
+s.notes_slide.notes_text_frame.text = """What the model does and does not do. It takes the DFN's flow partition and connectivity at face value and drops the equal-flow assumption of a parallel-plate surrogate. It applies one slab half-width, D over 2, to every edge, natural fractures included, which overstates the rock a natural fracture can draw on only where it runs parallel to the hydraulic planes; B is an argument, so it can be swept. Particles that never exit are dropped and counted in n_stuck. The boundary condition is face to face rather than a well doublet; the well package can replace it once the mesh-free well intersection is wired to the graph. For the ML team the natural next moves are more seeds and spacings, sweeps of natural intensity and hydraulic permeability, and storing the per-fracture flow partition alongside the curves so the features are richer than the headline numbers."""
 rect(s, 0, 0, 13.333, 7.5, DARK)
-title(s, "What the surrogate says, and what Phase 2 has to add", dark=True)
-cards = [
-    ("Objectives are monotone in spacing", "w_tpL",
-     "At fixed flow and fixed rock volume the piston time does not depend on D, so the closest spacing always wins; at fixed fracture count the widest does. An interior optimum needs a cost per stage or the DFN flow partition."),
-    ("Heat is a solute with new coefficients", ("w_phi", "w_D"),
-     "turn run_graph_transport() into a thermal run. The infinite-matrix model handles 10⁴ particles in 2 s."),
-    ("The slab sampler cannot be reused as is", "w_gam",
-     "is the event-by-event trapping rate: 10⁷ times faster for heat than for a solute, minutes per particle. Phase 2 draws the whole slab retention time per edge from the finite-slab kernel instead."),
-]
-for i, (head, names, text) in enumerate(cards):
+title(s, "Scope, limits, and what to sweep next", dark=True)
+cards = [("What the DFN adds", None, "Flow partition among fractures and connectivity through the natural network come from graph flow; no equal-flow assumption. The result is deterministic given the particles."),
+         ("One slab width everywhere", "w_B", "is applied to every edge, natural fractures included. B is an argument of heat_extraction and can be swept or set per study."),
+         ("Boundaries and losses", None, "Flow is face to face, not a well doublet (the well package can replace it). Particles that never exit are dropped and counted in n_stuck.")]
+for i, (head, nm, text) in enumerate(cards):
     x = 0.6 + i * 4.1
-    rect(s, x, 1.7, 3.85, 3.9, RGBColor(0x3A, 0x3D, 0x55))
+    rect(s, x, 1.7, 3.85, 3.6, RGBColor(0x3A, 0x3D, 0x55))
     box(s, x + 0.3, 1.95, 3.25, 1.0, head, size=18, bold=True, font=HEAD, color=RGBColor(0xE8, 0xA8, 0x7C))
     y = 3.0
-    for nm in (names if isinstance(names, tuple) else (names,)):
-        y += eq(s, nm, x + 0.3, y, 1.65) + 0.15
-    box(s, x + 0.3, y + 0.1, 3.25, 1.8, text, size=13, color=WHITE)
-box(s, 0.6, 5.95, 12.1, 0.5, "Next: per-edge finite-slab kernel and the arrival-time → Q̇(t) conversion (Shook 2001), then the same optimizer with the DFN backend.",
-    size=14, italic=True, color=RGBColor(0xC8, 0xC9, 0xD4))
+    if nm:
+        y += eq(s, nm, x + 0.3, y, 1.6) + 0.15
+    box(s, x + 0.3, y + 0.1, 3.25, 2.0, text, size=13, color=WHITE)
+box(s, 0.6, 5.7, 12.1, 0.9, "Next for the dataset: more seeds and spacings, sweeps of natural-set intensity and hydraulic permeability, and the per-fracture flow partition stored with each sample as additional features.", size=14, italic=True, color=RGBColor(0xC8, 0xC9, 0xD4))
 footer(s, dark=True)
 
-prs.save("thermal_surrogate_method.pptx")
+prs.save("thermal_dfn_dataset_method.pptx")
 print("saved")

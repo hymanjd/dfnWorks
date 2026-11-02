@@ -1,104 +1,63 @@
 """
 verify_thermal.py
 -----------------
-Verification of pydfnworks.thermal (Gringarten MPF surrogate, DFN backend
-interface, spacing optimizer).
+Verification of pydfnworks.thermal (DFN-based heat extraction).
 
 Tests
 -----
-  1. Wide-spacing limit equals the semi-infinite single-fracture erfc
-     solution (Lauwerier; Bodvarsson and Tsang 1982)
-  2. Close spacing: never more heat than wide spacing, and much earlier
-     deep drawdown
-  3. Energy balance at close spacing: cumulative heat = heat in the slabs
-  4. Stehfest inversion matches the GEOPHIRES-X mpmath route
-  5. Finite spacing: a finite-difference solution of the governing
-     equations converges to the inverted solution at beta = 1
-  6. Physical bounds and runtime
-  7. Interface: both backends reject the same bad inputs; the DFN stub
-     raises NotImplementedError; thermal-to-TDRW mapping
-  8. Optimizer: objectives, grid, stage-count coupling, backend swap
+  1. Slab kernel limits: beta_G -> inf is the semi-infinite erfc solution
+     (Lauwerier 1955); beta_G -> 0 is a step at t_D = beta_G with unit
+     heat balance
+  2. Slab kernel at finite beta_G against an independent finite-difference
+     solution of the slab-conduction / fracture-advection equations
+  3. Single path: thermal_breakthrough() with infinite rock equals the
+     Lauwerier closed form erfc(phi sqrt(D) beta / (2 sqrt(t - tau))), and
+     with finite slabs equals the slab kernel
+  4. Consistency with the graph-transport TDRW sampler: the Monte Carlo
+     CDF of the infinite-matrix return time (tdrw.infinite) over one
+     edge matches thermal_breakthrough() for that edge
+  5. Superposition: two groups of paths give the weighted average, and
+     stuck/empty inputs are rejected
+  6. Dataset helpers: hydraulic fracture placement, HDF5 round trip,
+     manifest
 
 Run with:  python verify_thermal.py   (exit code 0 if all pass)
-The test_* functions also run under pytest.
 """
 
+import os
 import sys
-import time
-import functools
+import tempfile
 import numpy as np
-from scipy.special import erfc
+from scipy.special import erfc, erfcinv
 from scipy.linalg import solve_banded
 
-from pydfnworks.thermal import (mpf_gringarten as mpf, dfn_heat, optimize_spacing,
-                                cumulative_heat, time_to_drawdown,
+from pydfnworks.thermal import (slab_drawdown, thermal_breakthrough, thermal_to_tdrw_parameters,
+                                hydraulic_fracture_positions, write_sample, append_manifest,
                                 GRANITE_PROPS, WATER_PROPS, SECONDS_PER_YEAR)
+from pydfnworks.dfnGraph.transport.tdrw.infinite import t_diff_unlimited
 
-ROCK, FLUID = GRANITE_PROPS, WATER_PROPS
-M_DOT, T_RES, T_INJ, N, H = 60.0, 226.0, 40.0, 20, 60.0
-T_EVAL = np.linspace(0.0, 30 * SECONDS_PER_YEAR, 361)
 _trapezoid = getattr(np, "trapezoid", None) or np.trapz
+P = thermal_to_tdrw_parameters(GRANITE_PROPS, WATER_PROPS)
+PHI, D = P["matrix_porosity"], P["matrix_diffusivity"]
 
 
-def Q_of(spacing, t_eval=T_EVAL, n=N, backend=mpf.heat_extraction):
-    return backend(spacing, M_DOT, T_RES, T_INJ, ROCK, FLUID, n, H, t_eval)
+def test_slab_kernel_limits():
+    t_D = np.logspace(-3, 3, 60)
+    err_inf = np.max(np.abs(slab_drawdown(t_D, np.inf) - erfc(0.5 / np.sqrt(t_D))))
+    err_big = np.max(np.abs(slab_drawdown(t_D, 1e5) - erfc(0.5 / np.sqrt(t_D))))
+    # small beta_G: step at t_D = beta_G; integral of (1 - T_wD) over t_D equals beta_G
+    bg = 0.3
+    t = np.linspace(0, 6 * bg, 3001)
+    heat = _trapezoid(1 - slab_drawdown(t, bg), t) / bg
+    print(f"  |T_wD - erfc|: beta_G = inf {err_inf:.1e}, 1e5 {err_big:.1e}; "
+          f"beta_G = {bg}: heat / piston = {heat:.4f}")
+    assert err_inf < 1e-12 and err_big < 1e-4 and abs(heat - 1) < 1e-2
 
 
-def test_wide_spacing_limit():
-    p = mpf.dimensionless_parameters(1e6, M_DOT, ROCK, FLUID, N, H)
-    alpha = ROCK["k"] / (ROCK["rho"] * ROCK["c"])
-    q_w = M_DOT / (FLUID["rho"] * N * H)
-    T_D = np.zeros_like(T_EVAL)
-    T_D[1:] = erfc(ROCK["k"] * H / (FLUID["rho"] * FLUID["c"] * q_w
-                                    * np.sqrt(alpha * T_EVAL[1:])))
-    Q_ref = M_DOT * FLUID["c"] * (T_RES - T_INJ) * (1 - T_D)
-    err = np.max(np.abs(Q_of(1e6) - Q_ref)) / Q_ref[0]
-    t_D = np.logspace(-3, 3, 50)
-    err_D = np.max(np.abs(mpf.dimensionless_drawdown(t_D, p["beta"])
-                          - mpf.single_fracture_drawdown(t_D)))
-    print(f"  beta = {p['beta']:.1e}: |Q - Q_erfc|/Q0 {err:.1e}, |T_wD - erfc| {err_D:.1e}")
-    assert err < 1e-5 and err_D < 1e-5
-
-
-def test_close_vs_wide():
-    Q_close, Q_wide = Q_of(5.0), Q_of(100.0)
-    t = np.linspace(0, 2 * SECONDS_PER_YEAR, 4001)
-    t75 = [time_to_drawdown(t, Q_of(s, t), 0.25) for s in (5.0, 100.0)]
-    print(f"  max(Q_close - Q_wide)/Q0 {np.max(Q_close - Q_wide)/Q_close[0]:.1e}; "
-          f"E ratio {_trapezoid(Q_close, T_EVAL)/_trapezoid(Q_wide, T_EVAL):.3f}; "
-          f"t_75% {t75[0]/86400:.0f} d vs {t75[1]/86400:.0f} d")
-    assert np.max(Q_close - Q_wide) < 1e-3 * Q_close[0]
-    assert _trapezoid(Q_close, T_EVAL) < 0.5 * _trapezoid(Q_wide, T_EVAL)
-    assert t75[0] < 0.8 * t75[1]
-
-
-def test_energy_balance():
-    for spacing in (2.0, 5.0):
-        p = mpf.dimensionless_parameters(spacing, M_DOT, ROCK, FLUID, N, H)
-        t = np.linspace(0, 6 * p["t_piston"], 2001)
-        ratio = _trapezoid(Q_of(spacing, t), t) / (p["heat_in_place"] * (T_RES - T_INJ))
-        print(f"  spacing {spacing} m, beta {p['beta']:.2f}: E / E_rock = {ratio:.4f}")
-        assert abs(ratio - 1) < 1e-2
-
-
-def test_matches_geophires_mpmath():
-    from mpmath import exp, invertlaplace, sqrt, tanh, workdps
-    t_D = np.logspace(-1, 3, 30)
-    for beta in (0.5, 1.5, 6.0):
-        fp = lambda s: (1 / s) * exp(-sqrt(s) * tanh(beta * sqrt(s)))
-        with workdps(15):  # GEOPHIRES-X default precision
-            ref = np.array([float(invertlaplace(fp, t, method="stehfest")) for t in t_D])
-        err = np.max(np.abs(mpf.dimensionless_drawdown(t_D, beta) - ref))
-        print(f"  beta {beta}: max |stehfest - mpmath| = {err:.1e}")
-        assert err < 1e-3
-
-
-def fd_outlet_drawdown(beta, t_end, nz, nx, nt):
-    """ Finite-difference solution of the dimensionless MPF equations:
-    slab  d theta/dt = d^2 theta/dx^2 on 0 < x < beta, insulated at x = beta;
-    fracture d theta_w/dz = d theta/dx |_0+, theta_w(0) = 1.
-    Crank-Nicolson in t per slab column, implicit wall coupling along z. """
-    dx, dz = beta / nx, 1.0 / nz
+def fd_outlet_drawdown(beta_G, t_end, nz, nx, nt):
+    """ Finite differences for: slab d theta/dt = d2 theta/dx2 on 0 < x < beta_G,
+    insulated at x = beta_G; fracture d theta_w/dz = d theta/dx|0+, theta_w(0) = 1 """
+    dx, dz = beta_G / nx, 1.0 / nz
     theta = np.zeros((nz + 1, nx + 1))
     c = dz / (2 * dx)
     T, times, out = 0.0, [0.0], [0.0]
@@ -127,86 +86,97 @@ def fd_outlet_drawdown(beta, t_end, nz, nx, nt):
     return np.array(times), np.array(out)
 
 
-def test_finite_difference():
+def test_slab_kernel_finite_difference():
     errs = []
     for nz, nx, nt in ((50, 100, 1500), (100, 200, 3000)):
         t, fd = fd_outlet_drawdown(1.0, 6.0, nz, nx, nt)
         m = t > 0.05
-        errs.append(np.max(np.abs(fd[m] - mpf.dimensionless_drawdown(t[m], 1.0))))
-    print(f"  beta = 1: max |FD - Stehfest| coarse {errs[0]:.1e}, fine {errs[1]:.1e}")
-    assert errs[1] < errs[0] < 1e-1 and errs[1] < 1e-2
+        errs.append(np.max(np.abs(fd[m] - slab_drawdown(t[m], 1.0))))
+    print(f"  beta_G = 1: max |FD - Stehfest| coarse {errs[0]:.1e}, fine {errs[1]:.1e}")
+    assert errs[1] < errs[0] and errs[1] < 1e-2
 
 
-def test_bounds_and_runtime():
-    Q0 = M_DOT * FLUID["c"] * (T_RES - T_INJ)
-    for spacing in (1.0, 20.0, 1e4):
-        Q = Q_of(spacing)
-        assert abs(Q[0] - Q0) < 1e-9 * Q0 and np.all(Q >= 0) and np.all(Q <= Q0 * (1 + 1e-12))
-    tic = time.perf_counter()
-    for _ in range(200):
-        Q_of(20.0)
-    per_call = (time.perf_counter() - tic) / 200
-    print(f"  Q(0) = {Q0/1e6:.2f} MW; bounds hold; {per_call*1e6:.0f} us per call")
-    assert per_call < 0.1
+def test_single_path():
+    tau, b = 2.0e4, 3.0e-4            # advective time [s], aperture [m]
+    beta = 2 * tau / b                # exchange integral of one edge
+    t = tau + np.logspace(5, 10, 80)
+    F = thermal_breakthrough([tau], [beta], t)
+    F_ref = erfc(PHI * np.sqrt(D) * beta / (2 * np.sqrt(t - tau)))
+    err_inf = np.max(np.abs(F - F_ref))
+    B = 5.0
+    t_s = (PHI * np.sqrt(D) * beta)**2
+    F_B = thermal_breakthrough([tau], [beta], t, slab_half_width=B)
+    err_B = np.max(np.abs(F_B - slab_drawdown((t - tau) / t_s, B / (PHI * D * beta))))
+    print(f"  infinite rock: max |F - Lauwerier| = {err_inf:.1e}; slab B = {B} m: "
+          f"beta_G = {B/(PHI*D*beta):.2f}, max |F - kernel| = {err_B:.1e}; F = 0 before tau: {np.all(thermal_breakthrough([tau],[beta],[0, tau]) == 0)}")
+    assert err_inf < 1e-12 and err_B < 1e-12
+    assert np.all(F_B >= F - 0.02) and F_B[-1] > F[-1]   # finite slabs cool sooner (ringing tolerance near the step)
 
 
-def test_interface():
-    base = [20.0, M_DOT, T_RES, T_INJ, ROCK, FLUID, N, H, T_EVAL]
-    bad = [(0, -1.0), (1, 0.0), (3, T_RES), (6, 0), (4, {"rho": 1, "c": 1}),
-           (8, np.array([-1.0, 1.0]))]
-    for backend in (mpf.heat_extraction, dfn_heat.heat_extraction):
-        for i, value in bad:
-            args = list(base)
-            args[i] = value
-            try:
-                backend(*args)
-                raise AssertionError(f"{backend.__module__} accepted arg {i} = {value}")
-            except ValueError:
-                pass
+def test_matches_tdrw_sampler():
+    tau, b = 2.0e4, 3.0e-4
+    a = PHI * np.sqrt(D) / b           # tdrw.infinite parameterization
+    rng = np.random.default_rng(0)
+    samples = np.array([t_diff_unlimited(a, tau, xi) for xi in rng.uniform(size=20000)])
+    t = tau + np.logspace(5, 10, 40)
+    F_mc = np.array([(samples <= ti - tau).mean() for ti in t])
+    F = thermal_breakthrough([tau], [2 * tau / b], t)
+    err = np.max(np.abs(F - F_mc))
+    print(f"  20000 TDRW infinite-matrix samples: max |F - F_MC| = {err:.3f}")
+    assert err < 0.02
+
+
+def test_superposition_and_errors():
+    t = np.logspace(5, 10, 30)
+    tau = np.array([1e4, 5e4])
+    beta = np.array([1e8, 3e8])
+    F_each = [thermal_breakthrough([tau[i]], [beta[i]], t) for i in range(2)]
+    F_w = thermal_breakthrough(tau, beta, t, weights=[1.0, 3.0])
+    assert np.max(np.abs(F_w - (F_each[0] + 3 * F_each[1]) / 4)) < 1e-12
+    for bad in ([], ):
+        try:
+            thermal_breakthrough(bad, bad, t)
+            raise AssertionError("empty particle set accepted")
+        except ValueError:
+            pass
+    print("  weighted average of two paths reproduced; empty particle set rejected")
+
+
+def test_dataset_helpers():
+    pos = hydraulic_fracture_positions(100.0, 10.0)
+    assert pos.size == 10 and abs(pos[0] + 45.0) < 1e-12 and abs(np.diff(pos).mean() - 10) < 1e-12
     try:
-        dfn_heat.heat_extraction(*base)
-        raise AssertionError("stub did not raise")
-    except NotImplementedError as err:
-        assert "run_graph_transport" in str(err)
-    tdrw = dfn_heat.thermal_to_tdrw_parameters(ROCK, FLUID)
-    assert abs(tdrw["matrix_diffusivity"] - ROCK["k"] / (ROCK["rho"] * ROCK["c"])) < 1e-15
-    print(f"  6 bad inputs rejected by both backends; stub raises; "
-          f"TDRW porosity-like {tdrw['matrix_porosity']:.3f}, D {tdrw['matrix_diffusivity']:.2e}")
-
-
-def test_optimizer():
-    t, Q = np.array([0.0, 1.0, 2.0, 3.0]), np.array([10.0, 10.0, 5.0, 0.0])
-    assert abs(cumulative_heat(t, Q) - 20.0) < 1e-12
-    assert abs(time_to_drawdown(t, Q, 0.9) - 1.2) < 1e-12
-    assert time_to_drawdown(t, np.full(4, 10.0)) == 3.0
-    common = (M_DOT, T_RES, T_INJ, ROCK, FLUID)
-    # fixed count: wider spacing extracts more over 30 yr
-    r = optimize_spacing(np.geomspace(2, 200, 15), *common, N, H, T_EVAL)
-    assert r["spacings"].size == 15 and r["spacing"] == 200.0
-    assert np.all(np.diff(r["objectives"]) >= -1e-6 * r["objective"])
-    # stages filling a lateral: closest spacing delays drawdown most
-    L = 300.0
-    r = optimize_spacing(L / np.arange(2, 31), *common, lambda s: int(round(L / s)), H, T_EVAL,
-                         objective=functools.partial(time_to_drawdown, fraction=0.9))
-    assert r["spacing"] == L / 30 and r["n_fractures"] == 30
-    try:
-        optimize_spacing([5.0, 50.0], *common, N, H, T_EVAL, heat_extraction=dfn_heat.heat_extraction)
-        raise AssertionError("backend swap did not raise")
-    except NotImplementedError:
+        hydraulic_fracture_positions(10.0, 20.0)
+        raise AssertionError("spacing larger than the domain accepted")
+    except ValueError:
         pass
-    print("  objectives OK; fixed-count best at upper bound; fixed-lateral best at closest; "
-          "backend swap raises NotImplementedError")
+    t = np.linspace(0, 30 * SECONDS_PER_YEAR, 50)
+    result = {"t_eval": t, "F": np.linspace(0, 1, 50), "T_out": np.linspace(226, 40, 50),
+              "Q": np.linspace(1e7, 0, 50), "m_dot": 20.0, "flow_rate": 0.02,
+              "advect_time": np.array([1e4, 2e4]), "beta": np.array([1e8, 2e8]), "n_exit": 2, "n_stuck": 0}
+    inputs = {"spacing": 10.0, "seed": 1, "rock_props": GRANITE_PROPS, "label": "test"}
+    with tempfile.TemporaryDirectory() as d:
+        write_sample(os.path.join(d, "s.h5"), inputs, result)
+        import h5py, json
+        with h5py.File(os.path.join(d, "s.h5")) as f:
+            assert f["inputs"].attrs["spacing"] == 10.0
+            assert json.loads(f["inputs"].attrs["rock_props"])["k"] == GRANITE_PROPS["k"]
+            assert np.allclose(f["curves/Q"][...], result["Q"]) and f.attrs["n_exit"] == 2
+            assert f["particles/beta"].shape == (2,)
+        m = os.path.join(d, "manifest.csv")
+        append_manifest(m, {"sample": "s.h5", "spacing": 10.0})
+        append_manifest(m, {"sample": "t.h5", "spacing": 20.0})
+        assert open(m).read().count("\n") == 3
+    print("  10 fractures at 10 m in 100 m, first at -45 m; HDF5 round trip and manifest OK")
 
 
 TESTS = [
-    ("Wide-spacing erfc limit (Bodvarsson-Tsang)", test_wide_spacing_limit),
-    ("Close vs wide spacing", test_close_vs_wide),
-    ("Energy balance at close spacing", test_energy_balance),
-    ("Stehfest vs GEOPHIRES-X mpmath", test_matches_geophires_mpmath),
-    ("Finite-difference cross-check at beta = 1", test_finite_difference),
-    ("Physical bounds and runtime", test_bounds_and_runtime),
-    ("Interface, DFN stub, TDRW mapping", test_interface),
-    ("Spacing optimizer", test_optimizer),
+    ("Slab kernel limits (erfc, piston)", test_slab_kernel_limits),
+    ("Slab kernel vs finite differences", test_slab_kernel_finite_difference),
+    ("Single path vs Lauwerier and slab kernel", test_single_path),
+    ("Consistency with the TDRW infinite-matrix sampler", test_matches_tdrw_sampler),
+    ("Superposition and input errors", test_superposition_and_errors),
+    ("Dataset helpers", test_dataset_helpers),
 ]
 
 if __name__ == "__main__":

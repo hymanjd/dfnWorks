@@ -3,23 +3,18 @@
 pydfnworks: thermal
 ========================================
 
-Heat extraction from fractured rock for hydraulic-fracture spacing
-optimization. Two backends share one ``heat_extraction()`` interface so an
-optimizer can call either interchangeably: the analytic Gringarten,
-Witherspoon and Ohnishi (1975) multiple parallel fractures surrogate and
-the DFN graph-transport backend (interface only in this version).
+DFN-based heat extraction. Graph particle tracking supplies each path's
+advective time and fracture-rock exchange integral; an analytic slab kernel
+turns those into the produced temperature and heat extraction rate for
+parallel hydraulic fractures at a given spacing in a natural fracture
+network.
 
-Gringarten multiple parallel fractures surrogate
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-.. automodule:: pydfnworks.thermal.mpf_gringarten
-    :members: heat_extraction, dimensionless_parameters, dimensionless_drawdown, single_fracture_drawdown, laplace_drawdown
-
-DFN-based heat transport
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+Heat extraction from graph transport
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. automodule:: pydfnworks.thermal.dfn_heat
-    :members: heat_extraction, thermal_to_tdrw_parameters
+    :members: heat_extraction, thermal_breakthrough, slab_drawdown, thermal_to_tdrw_parameters
 
-Spacing optimizer
-^^^^^^^^^^^^^^^^^^
-.. automodule:: pydfnworks.thermal.optimize_spacing
-    :members: optimize_spacing, cumulative_heat, time_to_drawdown, plot_optimization
+Dataset helpers
+^^^^^^^^^^^^^^^^
+.. automodule:: pydfnworks.thermal.dataset
+    :members: add_hydraulic_fractures, hydraulic_fracture_positions, write_sample, append_manifest
