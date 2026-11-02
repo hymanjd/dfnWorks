@@ -67,6 +67,37 @@ def eq(slide, name, x, y, scale=2.0):
     return h / 600 * scale
 
 
+from pptx.oxml.ns import qn
+from lxml import etree
+
+
+def arrow(slide, x1, y1, x2, y2, color=MUTED, both=False, width=1.75):
+    c = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, Inches(x1), Inches(y1), Inches(x2), Inches(y2))
+    c.line.color.rgb = color
+    c.line.width = Pt(width)
+    ln = c.line._get_or_add_ln()
+    etree.SubElement(ln, qn("a:tailEnd")).set("type", "triangle")
+    if both:
+        etree.SubElement(ln, qn("a:headEnd")).set("type", "triangle")
+    return c
+
+
+def node(slide, x, y, w, h, head, body, fill=WHITE, line=DARK, head_color=DARK, body_color=INK, dashed=False):
+    r = rect(slide, x, y, w, h, fill, line=line, shape=MSO_SHAPE.ROUNDED_RECTANGLE)
+    r.adjustments[0] = 0.08
+    r.line.width = Pt(1.25)
+    if dashed:
+        from pptx.enum.dml import MSO_LINE_DASH_STYLE
+        r.line.dash_style = MSO_LINE_DASH_STYLE.DASH
+    box(slide, x + 0.15, y + 0.08, w - 0.3, 0.3, head, size=13, bold=True, color=head_color)
+    box(slide, x + 0.15, y + 0.38, w - 0.3, h - 0.45, body, size=10.5, color=body_color, spacing=1)
+    return r
+
+
+def tag(slide, x, y, w, text, color=MUTED, align=PP_ALIGN.LEFT):
+    box(slide, x, y, w, 0.3, text, size=9.5, italic=True, color=color, align=align)
+
+
 def title(slide, text, dark=False):
     box(slide, 0.6, 0.5, 12.1, 0.8, text, size=30, bold=True, font=HEAD,
         color=WHITE if dark else DARK)
@@ -206,7 +237,54 @@ box(s, 5.9, 4.45, 6.9, 2.3, [
 ], size=13, spacing=6)
 footer(s)
 
-# ---------------------------------------------------------------- 6 findings
+# ---------------------------------------------------------------- 6 flow chart
+s = prs.slides.add_slide(BLANK)
+s.notes_slide.notes_text_frame.text = """This slide answers where dfnWorks sits in the loop. The left column is existing dfnWorks: dfnGen generates the network, the well package places the laterals and reports which fractures each cuts, graph flow solves steady flow between the wells on the intersection graph, and graph transport tracks particles on that flow graph. The middle column is the new package. The surrogate needs only a handful of numbers from the DFN: the number of fractures the injector cuts or that sit on the inflow face, their mean diameter as the fracture height, the lateral length, and optionally the mass flow rate the network actually carries and the 1 over dQ spacing from the flow solution. Those feed the optimizer together with the reservoir and operating inputs. The optimizer calls heat_extraction once per candidate spacing and gets Q dot of t back; with the Phase 1 backend that is the analytic surrogate and nothing else from dfnWorks is touched. The Phase 2 backend takes the flow graph and the thermally retarded arrival times from graph transport instead; its interface exists and it raises NotImplementedError today. The outputs on the right are the same in both cases: the best spacing and stage count, the objective curve, the heat rate at the best spacing, and the figure and CSV files."""
+title(s, "Where dfnWorks enters: inputs and outputs")
+LIGHT = RGBColor(0xF4, 0xEF, 0xE8)
+TINT = RGBColor(0xFB, 0xF1, 0xEC)
+# column headers
+for x, w, text in ((0.6, 3.0, "dfnWorks, existing"), (4.4, 3.6, "pydfnworks.thermal, new"), (9.2, 3.5, "Outputs")):
+    box(s, x, 1.35, w, 0.3, text, size=12, bold=True, color=GARNET)
+# --- column A: dfnWorks
+ax, aw, ah = 0.6, 3.0, 0.95
+node(s, ax, 1.75, aw, ah, "dfnGen: DFN generation", "fracture radii, normals, centers; p32", fill=LIGHT)
+node(s, ax, 3.0, aw, ah, "Well package", "inject / produce laterals; fractures each well cuts", fill=LIGHT)
+node(s, ax, 4.25, aw, ah, "dfnGraph flow", "run_graph_flow: flow graph G between wells; per-fracture flow, total rate, dQ", fill=LIGHT)
+node(s, ax, 5.5, aw, ah, "dfnGraph transport", "run_graph_transport, TDRW with thermal parameters: particle arrival times", fill=LIGHT)
+for y in (2.7, 3.95, 5.2):
+    arrow(s, ax + aw / 2, y, ax + aw / 2, y + 0.3)
+# --- column B: thermal
+bx, bw = 4.4, 3.6
+node(s, bx, 1.75, bw, 0.95, "Reservoir and operating inputs", "T_res, T_inj, rock and fluid properties, mass flow (design value or graph flow), project life t_eval, objective, candidate spacings", fill=WHITE)
+node(s, bx, 3.0, bw, 0.95, "+ geometry from the DFN", "n = fractures cut by the injector or on the inflow face; H = mean diameter; L = lateral length; candidates D = L/n; 1/dQ as reference spacing", fill=WHITE)
+node(s, bx, 4.25, bw, 0.95, "optimize_spacing()", "for each candidate D: Q(t) = heat_extraction(D, m, T_res, T_inj, rock, fluid, n, H, t); keep the best objective(t, Q)", fill=TINT, line=GARNET, head_color=GARNET)
+node(s, bx, 5.5, 1.7, 1.0, "Phase 2: DFN", "dfn_heat backend; stub, raises NotImplementedError", fill=WHITE, dashed=True, head_color=MUTED, body_color=MUTED)
+node(s, bx + 1.9, 5.5, 1.7, 1.0, "Phase 1: surrogate", "mpf_gringarten; ~100 μs per call", fill=TINT, line=GARNET, head_color=GARNET)
+# vertical arrows in column B
+arrow(s, bx + bw / 2, 2.7, bx + bw / 2, 3.0)
+arrow(s, bx + bw / 2, 3.95, bx + bw / 2, 4.25)
+arrow(s, bx + 0.85, 5.2, bx + 0.85, 5.5, both=True)
+arrow(s, bx + 2.75, 5.2, bx + 2.75, 5.5, both=True)
+tag(s, bx + 1.0, 5.22, 1.6, "D, n down; Q(t) up", align=PP_ALIGN.CENTER)
+# dfnWorks -> thermal
+arrow(s, ax + aw, 3.47, bx, 3.47)
+tag(s, ax + aw + 0.05, 3.18, 0.8, "n, H, L")
+arrow(s, ax + aw, 4.6, bx - 0.02, 3.8)
+tag(s, ax + aw + 0.05, 4.65, 0.9, "m, dQ, n")
+arrow(s, ax + aw, 6.0, bx, 6.0)
+tag(s, ax + aw + 0.05, 6.05, 0.8, "G, arrival times")
+# thermal -> outputs
+cx, cw = 9.2, 3.5
+node(s, cx, 4.25, cw, 2.25, "Outputs", ["best spacing and stage count", "objective vs spacing (every candidate)", "Q(t) at the best spacing", "spacing_optimization.png, objective_vs_spacing.csv, heat_rate_best.csv"], fill=LIGHT)
+arrow(s, bx + bw, 4.72, cx, 4.72)
+arrow(s, bx + bw, 6.0, cx, 6.0)
+tag(s, bx + bw + 0.05, 4.45, 1.1, "best D, curve")
+tag(s, bx + bw + 0.05, 6.05, 1.1, "Q(t)")
+box(s, 0.6, 6.65, 12.1, 0.3, "Phase 1 reads geometry from dfnWorks and nothing else; Phase 2 will consume the flow graph and the arrival times. The optimizer and the outputs are the same in both cases.", size=11, italic=True, color=MUTED)
+footer(s)
+
+# ---------------------------------------------------------------- 7 findings
 s = prs.slides.add_slide(BLANK)
 s.notes_slide.notes_text_frame.text = """Three things to take away. First, with the surrogate alone the objective is monotone in spacing, and that is physics, not a weakness of the optimizer: with stages filling a fixed lateral at fixed flow, n times D is the lateral length, so the piston time does not depend on spacing at all and the closest spacing always approximates the ideal piston front best. At fixed fracture count the widest spacing wins because it adds rock. An interior optimum needs something the surrogate does not contain, either a cost per stage or the DFN flow partition. Second, heat is a solute with two coefficient substitutions: matrix porosity becomes the rock-to-fluid heat capacity ratio, about one half, and matrix diffusivity becomes the rock thermal diffusivity. With those, run_graph_transport already runs a thermal problem; the infinite-matrix model handled ten thousand particles in two seconds. Third, the finite-slab sampler cannot be reused as is. It samples excursions event by event at a rate proportional to porosity times diffusivity, which is ten million times larger for heat, so a single particle took minutes. The Phase 2 kernel has to draw the whole slab retention time per edge. That, plus the arrival-time to heat-rate conversion, is the remaining work."""
 rect(s, 0, 0, 13.333, 7.5, DARK)
