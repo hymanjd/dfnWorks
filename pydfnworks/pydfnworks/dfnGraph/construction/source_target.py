@@ -113,7 +113,7 @@ def add_fracture_target(self, G, target):
     """
 
     if not type(target) == list:
-        source = [target]
+        target = [target]
 
     self.print_log("--> Adding new target connections", 'warning')
     self.print_log("--> Warning old target will be removed!!!", 'warning')
