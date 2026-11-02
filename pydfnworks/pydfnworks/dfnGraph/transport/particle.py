@@ -43,6 +43,7 @@ class Particle():
         self.delta_l = 0
         self.beta = 0
         self.delta_beta = 0
+        self.exchange = True
         self.tdrw_flag = tdrw_flag
         self.matrix_porosity = matrix_porosity
         self.matrix_diffusivity = matrix_diffusivity
@@ -148,10 +149,16 @@ class Particle():
 
             self.delta_t = G.edges[self.curr_node, self.next_node]['time']
             self.delta_l = G.edges[self.curr_node, self.next_node]['length']
-            self.delta_beta = (
-                2.0 * G.edges[self.curr_node, self.next_node]['length']) / (
-                    G.edges[self.curr_node, self.next_node]['b'] *
-                    G.edges[self.curr_node, self.next_node]['velocity'])
+            # edges flagged exchange=False (no_exchange_fractures in
+            # run_graph_transport) add no fracture-matrix exchange
+            self.exchange = G.edges[self.curr_node, self.next_node].get('exchange', True)
+            if self.exchange:
+                self.delta_beta = (
+                    2.0 * G.edges[self.curr_node, self.next_node]['length']) / (
+                        G.edges[self.curr_node, self.next_node]['b'] *
+                        G.edges[self.curr_node, self.next_node]['velocity'])
+            else:
+                self.delta_beta = 0.0
             self.curr_velocity = G.edges[self.curr_node,
                                          self.next_node]['velocity']
             self.curr_coords = (G.nodes[self.curr_node]['x'],
@@ -297,7 +304,9 @@ class Particle():
                 self.cleanup_frac_seq()
                 break
 
-            if self.tdrw_flag:
+            if self.tdrw_flag and not self.exchange:
+                self.delta_t_md = 0.0
+            elif self.tdrw_flag:
                 if self.tdrw_model == "infinite":
                     self.unlimited_matrix_diffusion(G)
                 elif self.tdrw_model == "roubinet":

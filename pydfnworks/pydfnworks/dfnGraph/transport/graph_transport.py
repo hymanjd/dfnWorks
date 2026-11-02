@@ -222,7 +222,8 @@ def run_graph_transport(self,
                         tdrw_filename=None,
                         control_planes=None,
                         direction=None,
-                        cp_filename='control_planes'):
+                        cp_filename='control_planes',
+                        no_exchange_fractures=None):
     """ Run  particle tracking on the given NetworkX graph
 
     Parameters
@@ -275,7 +276,12 @@ def run_graph_transport(self,
             list of control plane locations to dump travel times. Only in primary direction of flow. 
 
         primary direction : string (x,y,z)
-            string indicating primary direction of flow 
+            string indicating primary direction of flow
+
+        no_exchange_fractures : list of int
+            fractures with no fracture-matrix exchange (e.g. cased well
+            segments). Particles still advect through them, but their edges
+            add nothing to beta or to the TDRW matrix diffusion time.
 
     Returns
     -------
@@ -291,6 +297,11 @@ def run_graph_transport(self,
     global G_global
     G_global = nx.Graph()
     G_global = G.copy()
+    if no_exchange_fractures is not None:
+        no_exchange = set(no_exchange_fractures)
+        for u, v, d in G_global.edges(data=True):
+            d['exchange'] = d['frac'] not in no_exchange
+        self.print_log(f"--> No fracture-matrix exchange on {len(no_exchange)} fractures")
 
     if not format in ['ascii', 'hdf5']:
         error = (
@@ -365,7 +376,7 @@ def run_graph_transport(self,
                                 release_eps,
                                 control_plane_flag, control_planes, direction,
                                 seed)
-            particle.track(G, nbrs_dict)
+            particle.track(G_global, nbrs_dict)
             particles.append(particle)
 
         elapsed = timeit.default_timer() - tic
