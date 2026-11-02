@@ -1,0 +1,38 @@
+{
+  "jobname": "graph_sim_v1",
+  "num_hf": 3,
+  "hf_spacing": 100.0,
+  "hf_radii": 70,
+  "hf_aspect": 1,
+  "hf_centers": [
+    -100.0,
+    0.0,
+    100.0
+  ],
+  "lateral_y": 50,
+  "n_seg": 23,
+  "seg_length": 20,
+  "seg_overlap": 2,
+  "seg_width": 4,
+  "aperture": 0.001,
+  "num_frac": 49,
+  "inj_frac": 1,
+  "prod_frac": 24,
+  "p_in": 2000000.0,
+  "p_out": 1000000.0,
+  "flow_rate": 0.002282303454498111,
+  "conductance_model": "doolaeghe",
+  "mp_correction": "divide",
+  "no_exchange": "well segments",
+  "nparticles": 10000,
+  "n_exit": 10000,
+  "rock_props": {
+    "rho": 2750.0,
+    "c": 790.0,
+    "k": 3.05
+  },
+  "fluid_props": {
+    "rho": 1000.0,
+    "c": 4200.0
+  }
+}
