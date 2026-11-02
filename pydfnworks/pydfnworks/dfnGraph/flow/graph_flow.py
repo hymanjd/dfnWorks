@@ -244,15 +244,16 @@ def solve_flow_on_graph(G, pressure_in, pressure_out, fluid_viscosity, phi):
                 H.edges[upstream, downstream][att] = G.edges[upstream,
                                                              downstream][att]
 
-            H.edges[upstream, downstream]['flux'] = (
-                H.edges[upstream, downstream]['perm'] / fluid_viscosity) * (
-                    delta_p / H.edges[upstream, downstream]['length'])
-
+            # Edge flow from the same conductance ('weight') the pressures were
+            # solved with, so flow is conserved at every node for any
+            # conductance model. For 'karra' (weight = perm * area / length)
+            # this is the Darcy flux times the area.
             H.edges[upstream, downstream]['vol_flow_rate'] = H.edges[
-                upstream, downstream]['flux'] * H.edges[upstream,
-                                                        downstream]['area']
+                upstream, downstream]['weight'] * delta_p / fluid_viscosity
 
-            # H.edges[downstream, upstream]['vol_flow_rate'] =  -1*H.edges[upstream, downstream]['vol_flow_rate']
+            H.edges[upstream, downstream]['flux'] = H.edges[
+                upstream, downstream]['vol_flow_rate'] / H.edges[upstream,
+                                                                downstream]['area']
 
             H.edges[upstream,
                     downstream]['velocity'] = H.edges[upstream,
