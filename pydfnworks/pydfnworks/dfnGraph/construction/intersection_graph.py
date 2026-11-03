@@ -9,6 +9,10 @@ from pydfnworks.dfnGraph.attributes.perm_area import add_perm, add_area
 from pydfnworks.dfnGraph.construction.boundary import boundary_index
 from pydfnworks.general.logging import local_print_log
 
+# shortest internal edge [m]; coincident intersection centers are treated as this far apart
+MIN_EDGE_LENGTH = 1.0e-3
+
+
 def create_intersection_graph(inflow, outflow,
                               intersection_file="dfnGen_output/intersection_list.dat"):
     total_start = time.time()
@@ -73,6 +77,7 @@ def create_intersection_graph(inflow, outflow,
 
     # 4) Add internal edges
     edges_start = time.time()
+    n_floored = 0
     for frac, nodes_on_frac in fracture_node_dict.items():
         if frac in ('s', 't'):
             continue
@@ -81,9 +86,20 @@ def create_intersection_graph(inflow, outflow,
             dy = G.nodes[u]['y'] - G.nodes[v]['y']
             dz = G.nodes[u]['z'] - G.nodes[v]['z']
             distance = np.sqrt(dx*dx + dy*dy + dz*dz)
+            # Two intersections on this fracture can share a center (e.g. a fracture
+            # crossing two others exactly where they meet). A zero-length edge gets
+            # no conductance from the conductance models and breaks the flow solve,
+            # so treat such centers as MIN_EDGE_LENGTH apart: a short, highly
+            # conductive edge with negligible travel time.
+            if distance < MIN_EDGE_LENGTH:
+                distance = MIN_EDGE_LENGTH
+                n_floored += 1
             G.add_edge(u, v, frac=frac, length=distance)
     edges_end = time.time()
     local_print_log(f"--> Added internal edges in {edges_end - edges_start:.3f} s")
+    if n_floored:
+        local_print_log(f"--> {n_floored} edges joined coincident intersection centers; "
+                        f"their length was set to {MIN_EDGE_LENGTH} m", 'warning')
 
     # 5) Apply permeability and area
     perm_start = time.time()
