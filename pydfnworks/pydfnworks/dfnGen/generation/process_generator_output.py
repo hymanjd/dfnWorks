@@ -250,93 +250,35 @@ def assign_hydraulic_properties(self):
     ell_reject = reject_fracs[(frac_type == -1)]
     poly_reject = reject_fracs[(frac_type == -3)]
 
-    fracture_num = 1 #keep track of overall fracture number, and numbers for different types of fractures
-    frac_ell_num = 1
-    frac_rect_num = 1
-    frac_poly_num = 1
+    # User fractures take fracture numbers in the order dfnGen inserts them
+    # (DFNmain.cpp): user polygons always first, then user rectangles and
+    # ellipses, rectangles first only when insertUserRectanglesFirst is set.
+    # Rejected user fractures get no number, so they are skipped.
+    fracture_num = 1  # next overall fracture number
 
+    def insert_user_values(user_params, rejected, label):
+        nonlocal fracture_num
+        type_num = 1  # running number within this fracture type, as in the rejections file
+        for params in user_params:
+            for j in range(params['nPolygons']):
+                if type_num not in rejected:
+                    self.print_log(f'--> Inserting User {label} Hydraulic Params {fracture_num}')
+                    hy_prop_type = params['hy_prop_type']
+                    value = params[hy_prop_type][j]
+                    self.print_log(f'{hy_prop_type} = {value}')
+                    self.set_fracture_hydraulic_values(hy_prop_type, [fracture_num], [value])
+                    fracture_num += 1
+                type_num += 1
+
+    insert_user_values(self.user_poly_params, poly_reject, 'Poly')
     if self.params['insertUserRectanglesFirst']['value'] == 0:
-        self.print_log('--> Inserting User Ellipse Hydraulic Params First')
-        for i in range(len(self.user_ell_params)):
-            for j in range(self.user_ell_params[i]['nPolygons']):
-                if frac_ell_num not in ell_reject:
-                    self.print_log(f'--> Inserting User Ell Hydraulic Params {fracture_num}')
-                    hy_prop_type = self.user_ell_params[i]['hy_prop_type']
-                    value = self.user_ell_params[i][hy_prop_type][j]
-                    self.print_log(f'{hy_prop_type} = {value}')
-                    self.set_fracture_hydraulic_values(hy_prop_type, [fracture_num],
-                                               [value])
-                    fracture_num += 1
-
-                frac_ell_num += 1
-
-        for i in range(len(self.user_rect_params)):
-            for j in range(self.user_rect_params[i]['nPolygons']):
-                if frac_rect_num not in rect_reject:
-                    self.print_log(f'--> Inserting User Rect Hydraulic Params {fracture_num}')
-                    hy_prop_type = self.user_rect_params[i]['hy_prop_type']
-                    value = self.user_rect_params[i][hy_prop_type][j]
-                    self.print_log(f'{hy_prop_type} = {value}')
-                    self.set_fracture_hydraulic_values(hy_prop_type, [fracture_num],
-                                               [value])
-                    fracture_num += 1
-
-                frac_rect_num += 1
-
-        for i in range(len(self.user_poly_params)):
-            for j in range(self.user_poly_params[i]['nPolygons']):
-                if frac_poly_num not in poly_reject:
-                    self.print_log(f'--> Inserting User Poly Hydraulic Params {fracture_num}')
-                    hy_prop_type = self.user_poly_params[i]['hy_prop_type']
-                    value = self.user_poly_params[i][hy_prop_type][j]
-                    self.print_log(f'{hy_prop_type} = {value}')
-                    self.set_fracture_hydraulic_values(hy_prop_type, [fracture_num],
-                                               [value])
-                    fracture_num += 1
-
-                frac_poly_num += 1
-
+        self.print_log('--> Inserting User Ellipse Hydraulic Params before Rectangles')
+        insert_user_values(self.user_ell_params, ell_reject, 'Ell')
+        insert_user_values(self.user_rect_params, rect_reject, 'Rect')
     else:
-        self.print_log('--> Inserting User Rectangle Hydraulic Params First')
-        for i in range(len(self.user_rect_params)):
-            for j in range(self.user_rect_params[i]['nPolygons']):
-                if frac_rect_num not in rect_reject:
-                    self.print_log(f'--> Inserting User Rect Hydraulic Params {fracture_num}')
-                    hy_prop_type = self.user_rect_params[i]['hy_prop_type']
-                    value = self.user_rect_params[i][hy_prop_type][j]
-                    self.print_log(f'{hy_prop_type} = {value}')
-                    self.set_fracture_hydraulic_values(hy_prop_type, [fracture_num],
-                                               [value])
-                    fracture_num += 1
-                
-                frac_rect_num += 1
-
-        for i in range(len(self.user_ell_params)):
-            for j in range(self.user_ell_params[i]['nPolygons']): 
-                if frac_ell_num not in ell_reject:
-                    self.print_log(f'--> Inserting User Ell Hydraulic Params {fracture_num}')
-                    hy_prop_type = self.user_ell_params[i]['hy_prop_type']
-                    value = self.user_ell_params[i][hy_prop_type][j]
-                    self.print_log(f'{hy_prop_type} = {value}')
-        
-                    self.set_fracture_hydraulic_values(hy_prop_type, [fracture_num],
-                                               [value])
-                    fracture_num += 1
-                
-                frac_ell_num += 1
-
-        for i in range(len(self.user_poly_params)):
-            for j in range(self.user_poly_params[i]['nPolygons']):
-                if frac_poly_num not in poly_reject:
-                    self.print_log(f'--> Inserting User Poly Hydraulic Params {fracture_num}')
-                    hy_prop_type = self.user_poly_params[i]['hy_prop_type']
-                    value = self.user_poly_params[i][hy_prop_type][j]
-                    self.print_log(f'{hy_prop_type} = {value}')
-                    self.set_fracture_hydraulic_values(hy_prop_type, [fracture_num],
-                                               [value])
-                    fracture_num += 1
-
-                frac_poly_num += 1
+        self.print_log('--> Inserting User Rectangle Hydraulic Params before Ellipses')
+        insert_user_values(self.user_rect_params, rect_reject, 'Rect')
+        insert_user_values(self.user_ell_params, ell_reject, 'Ell')
 
     # self.dump_hydraulic_values()
     self.print_log("--> Assign hydraulic properties: Complete ")
