@@ -56,20 +56,38 @@ a link; clear the stale `build/` first):
 - Intersection-graph edges shorter than 1 mm are set to 1 mm (coincident intersection
   centers broke the flow solve with `KeyError: 'weight'`).
 
+## State at the end of 2 November
+
+- Thermal slab: `thermal.spacing` sets B = spacing/2 from `dQ` (default, 1/dQ from
+  `DFN.compute_dQ`, cased wells excluded), `p32` (1/P32) or `hf` (HF spacing).
+  `compute_dQ` normalizes by the whole domain volume, so 1/P32 is large for HF-only runs.
+- Painting (`mesh: true`): per-fracture `pressure`, `flow_fraction` and
+  `log10_flow_fraction` on `reduced_mesh.inp` (pydfnworks meshes in visual mode by
+  default, so ~4000 fractures mesh in about a minute). Example: `runs/bg_pressure.yaml`
+  -> `results/bg_pressure/reduced_mesh.inp`.
+- Last background sweep (`driver_v3.py`, total_p32 = 0.288): 27 ok, 3 failed
+  (`lhs_hf_11`, 20, 22) at the numbering check: `keepOnlyLargestCluster = True` dropped or
+  renumbered an HF.
+- Current sweeps barely cool (E / no-cooling >= 0.98): with HF aperture 1e-4 m and a
+  1 MPa drop, m_dot is 0.07-0.5 kg/s, so production is flow-limited and the slab choice
+  hardly matters yet.
+
 ## What to do next
 
-1. Slides: update `graph_egs_slides`, dropping the dfnWorks-development material
-   (graph-flow fix slide, verification table rows, before/after fixes slide) and adding
-   the sweep results.
-2. Background fractures (`driver_v3.py`): keep `keepOnlyLargestCluster = False`, or the
-   cluster removal can delete the wells and HFs. Run a sweep with it.
-3. Layout: injection and production are both at the -x end, so the HF nearest the
-   well ends takes most of the flow. Try the producer at the +x end
-   (`prod_frac = 2 n_seg`).
-4. Rock contact: compare the flow-equivalent width with a whole-fracture sweep
-   (2 A_f / Q_f per fracture) as an upper bound; HF radius/aspect barely affect
-   production under the current model.
-5. Re-sweep HF aperture and pressure drop now that apertures are assigned correctly.
+1. Painting by node: give each mesh node the pressure of the nearest graph node on the
+   same fracture (`add_variable_to_mesh(..., node_based=True)`); per-fracture means hide
+   the pressure drop across each HF (every HF paints ~1.5 MPa).
+2. `flow_fraction` is `compute_dQ`'s per-fracture Qf over the doublet flow; Qf sums flow
+   across every intersection on a fracture, so values exceed 1 (wells up to ~4). Fine as a
+   channeling ranking, not a true fraction: rename or normalize.
+3. Cluster removal (`driver_v3.py`): keep all fractures (`keepOnlyLargestCluster = False`)
+   and restrict the graph to the connected component holding source and target before
+   `run_graph_flow`, so disconnected clusters never enter the solve (fixes the 3 failures).
+4. Make cooling matter: target flow rate (one extra linear solve) or larger HF aperture /
+   pressure drop; decouple HF number from spacing (sweep `hydraulic_fractures.length`).
+5. Layout: producer at the +x end (`prod_frac = 2 n_seg`).
+6. Validation: compare T_out(t) for two or three designs against the TOUGH UDFM runs in
+   `EGS_scripts/ideal_HF/TOUGH_udfm/`.
 
 ## Carrying the Claude session over
 
