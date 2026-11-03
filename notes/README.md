@@ -1,67 +1,79 @@
-# Pickup notes: pydfnworks.thermal (DFN heat-extraction dataset)
+# Pickup notes: graph-based EGS heat extraction
 
-Branch `feature/thermal-mpf-surrogate` on the fork `hymanjd/dfnWorks`.
-Last push 2 November 2026 (`f8dfbc67`). Nothing is on `lanl/dfnWorks`.
+Work moved from the `pydfnworks.thermal` dataset pipeline to a graph-based EGS
+prototype that uses native dfnWorks calls. Two repos, both pushed 2 November 2026:
+
+- `hymanjd/dfnWorks`, branch `feature/thermal-mpf-surrogate` (dfnWorks fixes, slides)
+- `hymanjd/EGS_scripts`, branch `main`, folder `graph_based/` (the prototype)
+
+Nothing is on `lanl/dfnWorks`.
 
 ## Where things are
 
 | What | Where |
 |---|---|
-| Package | `pydfnworks/pydfnworks/thermal/` (`dfn_heat.py`, `dataset.py`) |
-| Tests | `pydfnworks/tests/thermal/verify_thermal.py` (6 tests, all pass) |
-| Example | `examples/thermal_dfn_dataset/driver.py` + README |
-| Status, open defects, numbers | `Documentation/thermal_status.md` |
-| Slides | `Documentation/thermal_dfn_dataset_method.pptx`; sources in `Documentation/thermal_slides/` |
-| Sphinx page | `Documentation/sphinx-docs/source/pydfnThermal.rst` |
+| Current driver (YAML-controlled) | `EGS_scripts/graph_based/driver_v2.py`; `driver_v3.py` adds background fractures |
+| Defaults and sweep generator | `graph_based/make_yaml_file.py` (`DEFAULT_CONFIG`, `SWEEP`, `FIXED`, Latin hypercube) |
+| Helpers (wells, thermal kernel, diagnostics, results) | `graph_based/helper_functions.py` |
+| Plots | `graph_based/plot_results.py` (`<run>`, or `--compare 'lhs_hf_*'`) |
+| Statistics | `graph_based/analysis.ipynb` (total thermal production vs swept inputs) |
+| Gather finished runs into `results/` | `graph_based/gather_outputs.py` |
+| Last sweep | `graph_based/runs/lhs_hf/` (30 runs: HF number 2-20, radius, aspect); summary `results/master_results.csv` |
+| Old drivers | `graph_based/old/` |
+| Slides | `dfnWorks/Documentation/graph_egs_slides/` (Beamer; `python make_figures.py`, then `pdflatex`) |
 
-## Set up on a new machine
+## Run
 
-    git clone git@github.com:hymanjd/dfnWorks.git && cd dfnWorks
-    git checkout feature/thermal-mpf-surrogate
-    cd pydfnworks && pip install -e . && python tests/thermal/verify_thermal.py
+From `EGS_scripts/graph_based/`, with `python3.13` (pydfnworks installed from this
+dfnWorks checkout):
 
-dfnGen must be built (`DFNGen/DFNGen`) and `~/.dfnworksrc` must name the
-checkout in `dfnworks_PATH`. LaGriT, PFLOTRAN and FEHM are not needed for
-the thermal example. `pip install -e .` must point at this checkout, not
-another dfnWorks clone, or `import pydfnworks.thermal` fails.
+    python3.13 driver_v2.py runs/base.yaml          # one run
+    python3.13 make_yaml_file.py                    # write a sweep (edit SWEEP/FIXED first)
+    bash runs/lhs_hf/run_all.sh                     # run it; progress in runs/lhs_hf/progress.log
+    python3.13 plot_results.py --compare 'lhs_hf_*'
 
-Run the example (not required to pick up the work; it is the thing to fix):
+Each run gathers its outputs into `results/<jobname>/`, deletes the dfnWorks job
+folder, and adds a row to `results/master_results.csv`. `run_all.sh` skips finished
+runs, so rerunning resumes a sweep.
 
-    cd examples/thermal_dfn_dataset && python driver.py
+After changing pydfnworks, reinstall it into python3.13 (the install is a copy, not
+a link; clear the stale `build/` first):
+
+    cd pydfnworks && rm -rf build && python3.13 -m pip install -e . --break-system-packages --no-deps
+
+## dfnWorks fixes on this branch (2 November)
+
+- `add_fracture_target` accepts a bare int.
+- Graph flow uses the same conductance for pressure, edge flow and area: node mass
+  balance holds for the Doolaeghe model; edge area is flow-equivalent (`area_geometric`
+  keeps the old value).
+- `run_graph_transport(..., no_exchange_fractures=[...])`: no heat/matrix exchange on
+  those fractures (cased wells).
+- **User-fracture apertures follow dfnGen's insertion order (polygons first).** Before
+  this, with polygon wells and ellipse HFs, the HF apertures landed on the first well
+  segments. Any sweep that varied HF aperture before this fix is invalid (the old
+  100-run sweep was deleted).
+- Intersection-graph edges shorter than 1 mm are set to 1 mm (coincident intersection
+  centers broke the flow solve with `KeyError: 'weight'`).
 
 ## What to do next
 
-Read `Documentation/thermal_status.md` first. Two defects from the last
-run, in priority order:
-
-1. The particle exchange integral `beta = sum 2 tau_i / b_i` on the
-   intersection graph is about 50x the parallel-plate value (median
-   1.6e10 s/m vs 3.2e8 expected at 10 m spacing), so no sample cools
-   within 30 years. Pipe-network edges carry flow through `b x ~40 m`,
-   not the fracture height. Candidate fix: fracture-level `beta` from the
-   per-fracture flow partition along the particle's `frac_seq`, or
-   corrected edge widths; then re-verify on a one-user-rectangle DFN
-   against the Lauwerier curve (the test file has the closed form).
-2. At 80 m spacing dfnGen's largest-cluster removal left 3 of 133
-   fractures and graph flow exited with "no nodes in the inlet". Make the
-   driver guarantee connectivity or skip the sample.
+1. Slides: update `graph_egs_slides`, dropping the dfnWorks-development material
+   (graph-flow fix slide, verification table rows, before/after fixes slide) and adding
+   the sweep results.
+2. Background fractures (`driver_v3.py`): keep `keepOnlyLargestCluster = False`, or the
+   cluster removal can delete the wells and HFs. Run a sweep with it.
+3. Layout: injection and production are both at the -x end, so the HF nearest the
+   well ends takes most of the flow. Try the producer at the +x end
+   (`prod_frac = 2 n_seg`).
+4. Rock contact: compare the flow-equivalent width with a whole-fracture sweep
+   (2 A_f / Q_f per fracture) as an upper bound; HF radius/aspect barely affect
+   production under the current model.
+5. Re-sweep HF aperture and pressure drop now that apertures are assigned correctly.
 
 ## Carrying the Claude session over
 
-The code is fully on the fork; only the conversation is machine-local.
-Options, from the Claude desktop app:
-
-- **Open in > Cloud** on the session: carries a summary of the
-  conversation and clones this branch. Uncommitted files do not travel.
-- **Remote Control** (`/remote-control`): drive the session from another
-  device while the original Mac stays on.
-- **Copy the transcript**: on the original Mac the session is
-  `~/.claude/projects/-Users-hymanjd-src-dfnWorks-jdhdev/d06dd10f-6bd4-44ea-a2d5-720a8dd77b85.jsonl`,
-  and the memory notes are in the `memory/` folder of the project
-  directory under `~/.claude/projects/` named after the original scratch
-  workspace. Copy both to the same paths on the other Mac and run
-  `claude --resume d06dd10f-6bd4-44ea-a2d5-720a8dd77b85`.
-
-A fresh session with none of that still has what it needs: this file,
-`Documentation/thermal_status.md`, and the module docstrings describe the
-model, the state, and the next step.
+The code is on the two forks; only the conversation is machine-local. From the
+Claude desktop app: **Open in > Cloud** carries a summary and clones the branch
+(uncommitted files do not travel), or use **Remote Control** while this Mac stays on.
+A fresh session has what it needs in this file and the script headers.
