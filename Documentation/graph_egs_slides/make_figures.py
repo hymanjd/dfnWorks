@@ -1,9 +1,7 @@
 """Figures for graph_egs_prototype.tex, from the run outputs in data/
 
-    data/current  driver_v1.py as committed (hf_aspect = 2), after the dfnWorks fixes
-    data/before   hf_aspect = 1, before the fixes (Karra-form edge flows, intersection-wide
-                  edges, heat exchange in the well segments)
-    data/after    hf_aspect = 1, after the fixes
+    data/current  one run: 3 HFs (radius 70 m, aspect 2), the geometry and results slides
+    data/sweep    30-run Latin hypercube sweep (HF number 2-20, radius, aspect): master_results.csv
 
 usage: python make_figures.py      (writes figs/)
 """
@@ -12,6 +10,8 @@ import re
 import sys
 import json
 import numpy as np
+import pandas as pd
+from scipy import stats
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -86,35 +86,38 @@ fig.savefig("figs/geometry.pdf")
 plt.close(fig)
 
 
-# ---------------------------------------------------------------- before / after
-def curves(run):
-    th = np.load(f"data/{run}/thermal.npz")
-    t = th["t_eval"]
-    Q = th["Q"]
-    E = np.concatenate([[0.0], np.cumsum(0.5 * (Q[1:] + Q[:-1]) * np.diff(t))]) / 3.6e12
-    return t / SECONDS_PER_YEAR, th["T_out"], E, float(th["m_dot"])
-
-
-fig, (ax_T, ax_E) = plt.subplots(1, 2, figsize=(9.2, 3.4), constrained_layout=True)
-for run, label, c in (("before", "before fixes", SERIES[1]), ("after", "after fixes", SERIES[0])):
-    yr, T, E, m = curves(run)
-    ax_T.plot(yr, T, color=c, label=f"{label} (m_dot {m:.2f} kg/s)")
-    ax_E.plot(yr, E, color=c, label=label)
-    ax_E.annotate(f"{E[-1]:.0f} GWh", (yr[-1], E[-1]), xytext=(-4, 5), textcoords="offset points",
-                  ha="right", fontsize=8, color=TEXT)
-ax_T.set_title("Produced temperature")
-ax_T.set_xlabel("time [years]")
-ax_T.set_ylabel("T_out [°C]")
-ax_T.set_xlim(0, 30)
-ax_T.legend(loc="upper right")
-ax_E.set_title("Cumulative heat extracted")
-ax_E.set_xlabel("time [years]")
-ax_E.set_ylabel("E [GWh thermal]")
-ax_E.set_xlim(0, 30)
-ax_E.set_ylim(bottom=0)
-ax_E.legend(loc="upper left")
-fig.savefig("figs/before_after.pdf")
+# ---------------------------------------------------------------- sweep
+sw = pd.read_csv("data/sweep/master_results.csv")
+inputs = [("hydraulic_fractures.number", "HF number"), ("hydraulic_fractures.radius", "HF radius [m]"),
+          ("hydraulic_fractures.aspect", "HF aspect")]
+fig, axes = plt.subplots(1, 3, figsize=(9.2, 3.0), constrained_layout=True, sharey=True)
+for ax, (c, name) in zip(axes, inputs):
+    ax.scatter(sw[c], sw["E_total_GWh"], s=16, color=SERIES[0], edgecolor="white", linewidth=0.6, zorder=2)
+    if sw[c].nunique() <= 25 and np.allclose(sw[c], sw[c].round()):
+        means = sw.groupby(c)["E_total_GWh"].mean()
+    else:
+        q = pd.qcut(sw[c], q=6, duplicates="drop")
+        means = sw.groupby(q, observed=True).agg(x=(c, "mean"), e=("E_total_GWh", "mean")).set_index("x")["e"]
+    ax.plot(means.index, means.values, color=SERIES[1], linewidth=2, marker="o", markersize=3, zorder=3)
+    rho = stats.spearmanr(sw[c], sw["E_total_GWh"]).statistic
+    ax.set_title(f"{name}  (ρ = {rho:+.2f})")
+    ax.set_xlabel(name)
+axes[0].set_ylabel("total production E [GWh]")
+fig.savefig("figs/sweep.pdf")
 plt.close(fig)
 
-print("--> figs/geometry.pdf, figs/before_after.pdf")
+# regression numbers quoted on the sweep slide
+X = np.column_stack([np.ones(len(sw))] + [sw[c].values for c, _ in inputs])
+y = sw["E_total_GWh"].values
+coef, *_ = np.linalg.lstsq(X, y, rcond=None)
+resid = y - X @ coef
+dof = len(y) - X.shape[1]
+se = np.sqrt(np.diag(resid @ resid / dof * np.linalg.inv(X.T @ X)))
+p = 2 * stats.t.sf(np.abs(coef / se), dof)
+r2 = 1 - resid @ resid / np.sum((y - y.mean()) ** 2)
+print(f"--> sweep: {len(sw)} runs, E {y.min():.1f}-{y.max():.1f} GWh, linear R^2 = {r2:.3f}")
+for (c, name), b, pp in zip(inputs, coef[1:], p[1:]):
+    print(f"    {name:14s} coef {b:+.3f} GWh per unit, p = {pp:.2g}")
+
+print("--> figs/geometry.pdf, figs/sweep.pdf")
 print("--> results: python <EGS_scripts>/graph_based/plot_results.py data/current; cp data/current/results.png figs/")
