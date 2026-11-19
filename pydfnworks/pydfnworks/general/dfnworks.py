@@ -136,14 +136,14 @@ class DFNWORKS():
     from pydfnworks.dfnGraph.graph_flow import run_graph_flow, compute_dQ
     from pydfnworks.dfnGraph.graph_transport import run_graph_transport
 
-    ## Graph to PFLOTRAN 
-    from pydfnworks.dfnGraph.graph_to_pflotran.graph_uge import make_connection_data_frame, make_cell_data_frame, convert_graph_to_data_frames, add_boundary_nodes_as_cells, add_boundary_nodes_as_conns
-    from pydfnworks.dfnGraph.graph_to_pflotran.compute_graph_to_pflotran_geometries import compute_graph_to_pflotran_geometries
-    from pydfnworks.dfnGraph.graph_to_pflotran.write_graph_uge import write_graph_uge
-    from pydfnworks.dfnGraph.graph_to_pflotran.graph_to_pflotran import graph_to_pflotran
-    from pydfnworks.dfnGraph.graph_to_pflotran.extract_graph_boundaries_from_dfn import extract_graph_boundaries_from_dfn, parse_boundary_ex
-    from pydfnworks.dfnGraph.graph_to_pflotran.dump_h5_file_for_graph_perm import dump_h5_file_for_graph_perm
-    from pydfnworks.dfnGraph.graph_to_pflotran.write_boundary_ex import write_boundary_ex,write_boundary_ex_files, write_ex
+    ## BiGraFV
+    from pydfnworks.dfnGraph.bigrafv.graph_uge import make_connection_data_frame, make_cell_data_frame, convert_graph_to_data_frames, add_boundary_nodes_as_cells, add_boundary_nodes_as_conns
+    from pydfnworks.dfnGraph.bigrafv.compute_graph_to_pflotran_geometries import compute_graph_to_pflotran_geometries
+    from pydfnworks.dfnGraph.bigrafv.write_graph_uge import write_graph_uge
+    from pydfnworks.dfnGraph.bigrafv.bigrafv import bigrafv
+    from pydfnworks.dfnGraph.bigrafv.extract_graph_boundaries_from_dfn import extract_graph_boundaries_from_dfn, parse_boundary_ex
+    from pydfnworks.dfnGraph.bigrafv.dump_h5_file_for_graph_perm import dump_h5_file_for_graph_perm
+    from pydfnworks.dfnGraph.bigrafv.write_boundary_ex import write_boundary_ex,write_boundary_ex_files, write_ex
     def __init__(self,
                  jobname=None,
                  ncpu=4,

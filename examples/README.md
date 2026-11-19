@@ -28,6 +28,11 @@
     Uses DFN.add_fracture_family to create rectangle fractures and runs PFLOTRAN for Transport simulation with files dfn_explicit.in and  dfn_restart.in
 
 
+- ### bigrafv_TPL
+
+    Creates ellipse fractures with tpl distribution (seed 10, 100x50x50 domain). Builds the bipartite graph with DFN.create_graph("bipartite", ...) and converts it to PFLOTRAN inputs with DFN.bigrafv, without meshing. Runs a PFLOTRAN pressure solve (pflotran_graph_pressure.in), restarts it with a tracer run (pflotran_graph_tracer.in), and computes the effective permeability.
+
+
 - ### calibrate_p32_from_p10
 
     This examples shows one method to calibirate p32 using p10 data. A fake well is put into the center of the domain.
