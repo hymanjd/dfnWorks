@@ -29,8 +29,6 @@ Released under the GPL License
 
     Copyright (C) 2015-2026 dfnWorks Developers
     Jeffrey Hyman <jhyman@lanl.gov>
-    Daniel Livingston <livingston@lanl.gov>
-    Satish Karra < satkarra@lanl.gov>
     
 """
 
@@ -40,7 +38,7 @@ __author__ = "EES-16, Los Alamos National Laboratory"
 __bibtex__ = """@article{hyman2015dfnworks,
   title={dfnWorks: A discrete fracture network framework for modeling subsurface flow and transport},
   author={Hyman, Jeffrey D and Karra, Satish and Makedonska, Nataliia and Gable, Carl W and Painter, Scott L and Viswanathan, Hari S},
-  journal={Computers \& Geosciences},
+  journal={Computers \\& Geosciences},
   volume={84},
   pages={10--19},
   year={2015},
@@ -48,9 +46,9 @@ __bibtex__ = """@article{hyman2015dfnworks,
 }
 """
 
-__version__ = "2.10.0"
+__version__ = "2.12.2"
 
-__release_date__ = "02-27-2026"
+__release_date__ = "16-11-2026"
 
 from ._install_info import get_install_date
 __install_date__ = get_install_date()

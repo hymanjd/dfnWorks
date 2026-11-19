@@ -1,0 +1,801 @@
+"""UGE-correction utilities for dfnWorks / PFLOTRAN.
+
+All functions that read, validate, and correct an explicit-unstructured-grid
+``.uge`` mesh file live in this module. The shared validity rule is: a value is
+replaced by its absolute value if negative, by a fill value if it is ``NaN`` or
+``+/-inf``, and otherwise left unchanged.
+
+"Negative" is judged against a round-off tolerance, not against exactly zero.
+LaGriT computes the Voronoi coefficients in double precision, and a connection
+whose true area (or a cell whose true volume) is zero comes back as a value of
+either sign at the level of ``eps * L * h`` (``L`` the domain size, ``h`` the
+mesh resolution), typically 1e-16 to 1e-13. Such a value is zero to working
+precision and is treated as valid: it is neither flagged, corrected, nor used as
+a fill candidate, exactly like an entry of ``0.0``. The tolerance is
+:data:`ROUNDOFF_REL` times ``h`` for connection areas (a length in the raw file)
+and times ``h**2`` for cell volumes (an area in the raw file); when ``h`` is not
+known the absolute :data:`ROUNDOFF_ABS` is used for both. See
+:func:`roundoff_tolerances`. A value below ``-tolerance`` (e.g. ``-1e-3``) is a
+genuine negative and is handled exactly as before.
+
+A second, larger tolerance applies to connection areas only. A connection area
+in the raw file is the length of the Voronoi edge dual to a triangle edge, which
+is ``L/2 * (cot a + cot b)`` for the two angles ``a`` and ``b`` opposite that
+edge. When the four nodes around the edge are cocircular (``a + b = 180``) the
+edge has zero length and both diagonals of the quad are Delaunay; LaGriT's
+``connect``/``recon`` in-circle test has its own tolerance, so a quad that is
+cocircular to within that tolerance may keep either diagonal and the computed
+length comes out as a tiny value of either sign, typically ``1e-7`` to ``1e-5``
+times ``h`` (far above floating-point round-off, far below the shortest real
+Voronoi edge). This happens in perfectly conforming meshes, in the smoothed
+interior of a fracture, with rFram off. Such a value is classified as a
+degenerate edge rather than an invalid coefficient: it is accepted as zero and
+left unchanged, but unlike round-off it is listed in the log, one line per
+connection. The tolerance is :data:`DEGENERATE_REL` times ``h``
+(:data:`DEGENERATE_ABS` when ``h`` is unknown); see
+:func:`degenerate_tolerance`. Cell volumes get no such tier: a Voronoi cell of
+a conforming mesh has no near-zero-area configuration of this kind.
+
+Correcting a bad value is only defensible when the mesh is *almost* conforming.
+Degenerate cells are an artifact of the relaxed meshing constraints used by rFram
+(see :mod:`pydfnworks.dfnGen.meshing.mesh_dfn`), and they show up mostly in dense
+networks and around triple intersections. So the module enforces a policy before
+it corrects anything:
+
+    * rFram off and any invalid value  -> hard error. A conforming mesh has no
+      business producing negative or non-finite coefficients; that is a meshing
+      failure, not an artifact to paper over.
+    * rFram unknown (``DFN.r_fram is None``, i.e. no parameter file was parsed,
+      as on a flow-only restart) and any invalid value -> hard error asking for
+      it to be set. "Unknown" must not quietly become "off" or "on".
+    * more than ``BAD_FRACTION_LIMIT`` of the cells *or* of the connections
+      invalid -> hard error, regardless of rFram. The two fractions are tested
+      independently against their own totals.
+    * otherwise -> correct, and log every offending cell and connection.
+
+Contents
+--------
+    roundoff_tolerances, degenerate_tolerance, classify_fix, scan_uge, scan_fills
+        Low-level helpers implementing the round-off and degenerate-edge
+        tolerances, the validity rule, the mesh-wide scan, and the fill
+        estimate.
+    fix_uge_volumes, fix_stream
+        Byte-faithful fixer: a clean file round-trips unchanged, and only the
+        corrected lines are rewritten.
+    correct_uge_file
+        dfnWorks method. ``dim=3`` aperture-converts ``full_mesh.uge`` into
+        ``full_mesh_vol_area.uge``; ``dim=2`` keeps ``full_mesh.uge``. The mesh
+        is always scanned and the policy above is always enforced.
+    lagrit2pflotran
+        dfnWorks method. Forwards ``dim`` to :func:`correct_uge_file`.
+"""
+import math
+import os
+import tempfile
+from time import time
+from collections import namedtuple
+
+CELL_FMT = "%10d  % .12E  % .12E  % .12E  % .12E"          # id  x y z  volume
+CONN_FMT = "%10d %10d  % .12E  % .12E  % .12E  % .12E"     # id1 id2  fx fy fz  area
+
+#: Largest fraction of invalid cells (or of invalid connections) that may be
+#: corrected. Above this the mesh is rejected instead of repaired.
+BAD_FRACTION_LIMIT = 0.01
+
+#: Round-off tolerance relative to the mesh resolution ``h``. A connection area
+#: with ``|area| <= ROUNDOFF_REL * h`` or a cell volume with
+#: ``|volume| <= ROUNDOFF_REL * h**2`` is treated as zero (valid) rather than
+#: negative. 1e-8 sits midway, in log terms, between the largest round-off seen
+#: on a zero-area entry (about ``eps * L * h``, under 1e-11 h even for a 10 km
+#: domain) and the smallest geometric coefficient a non-degenerate mesh produces
+#: (of order 1e-4 h for a short Voronoi edge, 1e-6 h**2 for a sliver cell).
+ROUNDOFF_REL = 1e-8
+
+#: Absolute round-off tolerance used for both columns when ``h`` is unknown
+#: (standalone use of :func:`scan_uge` / :func:`fix_uge_volumes`, or a flow-only
+#: restart where ``DFN.h`` was never set). Covers the observed round-off
+#: (1e-16 to 1e-14) for metre-scale meshes with a margin of 100x.
+ROUNDOFF_ABS = 1e-12
+
+#: Degenerate-edge tolerance relative to the mesh resolution ``h``, for
+#: connection areas only. A negative connection area with
+#: ``|area| <= DEGENERATE_REL * h`` is a zero-length Voronoi edge whose sign was
+#: decided by LaGriT's in-circle tolerance (the four surrounding nodes are
+#: cocircular to within that tolerance; see the module docstring). It is
+#: accepted as zero and listed, not rejected and not corrected. 1e-5 is three
+#: decades above :data:`ROUNDOFF_REL` and one decade below the shortest real
+#: Voronoi edge seen in a conforming mesh (about 1e-4 h); the degenerate edges
+#: observed so far are 1e-6 h to 1e-5 h in magnitude, of either sign.
+DEGENERATE_REL = 1e-5
+
+#: Absolute degenerate-edge tolerance used when ``h`` is unknown. Keeps the
+#: 1000x ratio to :data:`ROUNDOFF_ABS`; it is deliberately conservative, since
+#: without ``h`` there is no scale to judge a tiny negative against. Set
+#: ``DFN.h`` on a flow-only restart to get the ``h``-scaled classification.
+DEGENERATE_ABS = 1e-9
+
+Result = namedtuple("Result", ["cell_negative", "cell_nonfinite",
+                               "conn_negative", "conn_nonfinite",
+                               "vol_fill", "area_fill"])
+
+#: Outcome of :func:`scan_uge`. ``bad_cells`` holds ``(id, x, y, z, volume,
+#: kind)`` tuples and ``bad_conns`` holds ``(id1, id2, area, kind)`` tuples, with
+#: ``kind`` as returned by :func:`classify_fix`. ``vol_tol`` and ``area_tol``
+#: are the round-off tolerances the scan was made with, and ``roundoff_cells``
+#: / ``roundoff_conns`` count the negative entries that fell inside them (and
+#: were therefore accepted as zero). ``degen_tol`` is the degenerate-edge
+#: tolerance and ``degenerate_conns`` holds ``(id1, id2, area)`` tuples for the
+#: negative connection areas with ``area_tol < |area| <= degen_tol`` (accepted
+#: as zero-length Voronoi edges; see :func:`degenerate_tolerance`).
+ScanResult = namedtuple("ScanResult", ["path", "vol_fill", "area_fill",
+                                       "n_cells", "n_conns",
+                                       "bad_cells", "bad_conns",
+                                       "vol_tol", "area_tol",
+                                       "roundoff_cells", "roundoff_conns",
+                                       "degen_tol", "degenerate_conns"])
+
+
+def roundoff_tolerances(h=None):
+    """Round-off tolerances for cell volumes and connection areas.
+
+    Parameters
+    ----------
+        h : float or None
+            Mesh resolution. ``None`` (or anything that is not a positive
+            finite number) selects the absolute fallback.
+
+    Returns
+    -------
+        tuple (float, float)
+            ``(vol_tol, area_tol)``: ``(ROUNDOFF_REL * h**2, ROUNDOFF_REL * h)``
+            when ``h`` is known, else ``(ROUNDOFF_ABS, ROUNDOFF_ABS)``.
+    """
+    if isinstance(h, (int, float)) and not isinstance(h, bool) \
+            and math.isfinite(h) and h > 0.0:
+        return ROUNDOFF_REL * h * h, ROUNDOFF_REL * h
+    return ROUNDOFF_ABS, ROUNDOFF_ABS
+
+
+def degenerate_tolerance(h=None):
+    """Degenerate-edge tolerance for connection areas.
+
+    A negative connection area no larger than this in magnitude is a
+    zero-length Voronoi edge (the surrounding quad is cocircular to within
+    LaGriT's in-circle tolerance, so either diagonal is Delaunay) and not an
+    invalid coefficient. See the module docstring.
+
+    Parameters
+    ----------
+        h : float or None
+            Mesh resolution. ``None`` (or anything that is not a positive
+            finite number) selects the absolute fallback.
+
+    Returns
+    -------
+        float
+            ``DEGENERATE_REL * h`` when ``h`` is known, else
+            :data:`DEGENERATE_ABS`. Always at least the round-off tolerance
+            for areas from :func:`roundoff_tolerances`.
+    """
+    if isinstance(h, (int, float)) and not isinstance(h, bool) \
+            and math.isfinite(h) and h > 0.0:
+        return max(DEGENERATE_REL * h, ROUNDOFF_REL * h)
+    return max(DEGENERATE_ABS, ROUNDOFF_ABS)
+
+
+def classify_fix(x, fill, tol=0.0):
+    """Apply the validity rule to a single value and report what was done.
+
+    Parameters
+    ----------
+        x : float
+            The raw value (cell volume or connection area).
+        fill : float
+            Replacement value used when ``x`` is NaN or infinite.
+        tol : float
+            Round-off tolerance. A value with ``-tol <= x < 0`` is zero to
+            working precision and is returned unchanged as valid. Default
+            ``0.0`` (exact test); see :func:`roundoff_tolerances`.
+
+    Returns
+    -------
+        tuple (float, str or None)
+            The corrected value and a tag describing the action: ``None`` if the
+            value was already valid, ``'negative'`` if it was negated, or
+            ``'nonfinite'`` if it was replaced by ``fill``.
+
+    Notes
+    -----
+        ``x < -tol`` -> ``abs(x)``; NaN/inf -> ``fill``; otherwise unchanged.
+    """
+    if not math.isfinite(x):
+        return fill, "nonfinite"
+    if x < -tol:
+        return -x, "negative"
+    return x, None
+
+
+def scan_uge(input_path, strategy="min", h=None):
+    """Scan a ``.uge`` file for invalid values and estimate per-column fills.
+
+    Makes a single sequential pass, tracking the running minimum, sum, and count
+    of the valid volumes (CELLS) and areas (CONNECTIONS), and recording every
+    entry that :func:`classify_fix` flags. Memory is O(number of invalid
+    entries), not O(mesh).
+
+    Every offending entry is recorded rather than only the first few: the caller
+    reports them all, and the policy decisions downstream (see
+    :func:`correct_uge_file`) only ever let a small fraction through.
+
+    Parameters
+    ----------
+        input_path : str
+            Path to the ``.uge`` file.
+        strategy : str
+            ``'min'`` (default) uses the smallest finite positive value in each
+            column; ``'mean'`` uses the mean of the finite positive values.
+        h : float, optional
+            Mesh resolution, used to set the round-off tolerances via
+            :func:`roundoff_tolerances` and the degenerate-edge tolerance via
+            :func:`degenerate_tolerance`. ``None`` selects the absolute
+            fallbacks :data:`ROUNDOFF_ABS` and :data:`DEGENERATE_ABS`.
+
+    Returns
+    -------
+        ScanResult
+            ``(path, vol_fill, area_fill, n_cells, n_conns, bad_cells,
+            bad_conns, vol_tol, area_tol, roundoff_cells, roundoff_conns,
+            degen_tol, degenerate_conns)``.
+            A fill is ``None`` when its column
+            holds no finite positive value to derive one from (an empty or
+            wholly invalid column); it is the caller's job to reject such a
+            mesh.
+
+    Raises
+    ------
+        ValueError
+            If ``strategy`` is not recognised.
+
+    Notes
+    -----
+        A volume or area whose magnitude is within the round-off tolerance
+        (including exactly ``0.0``) is neither flagged nor used as a fill
+        candidate, matching :func:`classify_fix`, which passes it through
+        unchanged. A negative area beyond the round-off tolerance but within
+        the degenerate-edge tolerance is recorded in ``degenerate_conns`` and
+        otherwise treated the same way: accepted, not a fill candidate.
+    """
+    vol_tol, area_tol = roundoff_tolerances(h)
+    degen_tol = degenerate_tolerance(h)
+    v_min = a_min = math.inf
+    v_tot = a_tot = 0.0
+    v_cnt = a_cnt = 0
+    v_ro = a_ro = 0
+    n_conns = 0
+    bad_cells = []
+    bad_conns = []
+    degenerate_conns = []
+    with open(input_path) as f:
+        n_cells = int(f.readline().split()[-1])
+        for _ in range(n_cells):
+            cols = f.readline().split()
+            v = float(cols[4])
+            _, kind = classify_fix(v, 0.0, vol_tol)
+            if kind is not None:
+                bad_cells.append((int(cols[0]), float(cols[1]), float(cols[2]),
+                                  float(cols[3]), v, kind))
+            elif v > vol_tol:
+                v_min = min(v_min, v); v_tot += v; v_cnt += 1
+            elif v < 0.0:
+                v_ro += 1
+        conn = f.readline().split()
+        if conn and conn[0].upper() == "CONNECTIONS":
+            n_conns = int(conn[-1])
+            for _ in range(n_conns):
+                cols = f.readline().split()
+                a = float(cols[5])
+                _, kind = classify_fix(a, 0.0, area_tol)
+                if kind == "negative" and a >= -degen_tol:
+                    degenerate_conns.append((int(cols[0]), int(cols[1]), a))
+                elif kind is not None:
+                    bad_conns.append((int(cols[0]), int(cols[1]), a, kind))
+                elif a > area_tol:
+                    a_min = min(a_min, a); a_tot += a; a_cnt += 1
+                elif a < 0.0:
+                    a_ro += 1
+
+    def pick(mn, tot, cnt):
+        if cnt == 0:
+            return None
+        if strategy == "min":
+            return mn
+        if strategy == "mean":
+            return tot / cnt
+        raise ValueError(f"unknown strategy {strategy!r} (use 'min', 'mean', or a number)")
+
+    return ScanResult(input_path, pick(v_min, v_tot, v_cnt),
+                      pick(a_min, a_tot, a_cnt), n_cells, n_conns,
+                      bad_cells, bad_conns, vol_tol, area_tol, v_ro, a_ro,
+                      degen_tol, degenerate_conns)
+
+
+def scan_fills(input_path, strategy="min", h=None):
+    """Estimate per-column fill values from the finite, positive entries.
+
+    Thin wrapper on :func:`scan_uge` for callers that only need the fills.
+
+    Parameters
+    ----------
+        input_path : str
+            Path to the ``.uge`` file.
+        strategy : str
+            ``'min'`` (default) or ``'mean'``.
+        h : float, optional
+            Mesh resolution for the round-off tolerance; see :func:`scan_uge`.
+
+    Returns
+    -------
+        tuple (float, float or None)
+            ``(vol_fill, area_fill)``. ``area_fill`` is ``None`` when the file
+            has no CONNECTIONS section.
+
+    Raises
+    ------
+        ValueError
+            If no finite positive volume exists to derive a fill from, or if
+            ``strategy`` is not recognised.
+    """
+    res = scan_uge(input_path, strategy, h)
+    if res.vol_fill is None:
+        raise ValueError("no finite positive volumes to derive a fill value from")
+    return res.vol_fill, res.area_fill
+
+
+def fix_stream(fin, fout, vol_fill, area_fill, vol_tol=0.0, area_tol=0.0):
+    """Stream-copy a ``.uge`` file from ``fin`` to ``fout``, correcting bad values.
+
+    Cell volumes (column 5) and connection areas (column 6) are passed through
+    :func:`classify_fix`. Lines that need no change are written verbatim; only
+    corrected lines are reformatted (byte-faithfully, in LaGriT's format).
+
+    Parameters
+    ----------
+        fin : file object
+            Open, readable handle on the source ``.uge`` file.
+        fout : file object
+            Open, writable handle for the corrected output.
+        vol_fill : float
+            Fill value for NaN/inf cell volumes.
+        area_fill : float or None
+            Fill value for NaN/inf connection areas.
+        vol_tol, area_tol : float
+            Tolerances passed to :func:`classify_fix`; entries within them are
+            written verbatim and not counted. Default ``0.0``. Callers that
+            want degenerate edges left alone pass
+            :func:`degenerate_tolerance` as ``area_tol``, as
+            :func:`fix_uge_volumes` does.
+
+    Returns
+    -------
+        tuple (int, int, int, int)
+            ``(cell_negative, cell_nonfinite, conn_negative, conn_nonfinite)``.
+
+    Raises
+    ------
+        ValueError
+            If a section header is malformed, the file is truncated, or a NaN/inf
+            area is encountered while ``area_fill`` is ``None``.
+    """
+    header = fin.readline()
+    parts = header.split()
+    if not parts or parts[0].upper() != "CELLS":
+        raise ValueError(f"expected 'CELLS <n>' header, got: {header!r}")
+    fout.write(header)
+
+    c_neg = c_bad = 0
+    for _ in range(int(parts[-1])):
+        line = fin.readline()
+        if not line:
+            raise ValueError("file ended before all CELLS lines were read")
+        cols = line.split()
+        fixed, kind = classify_fix(float(cols[4]), vol_fill, vol_tol)
+        if kind is None:
+            fout.write(line)
+        else:
+            fout.write(CELL_FMT % (int(cols[0]), float(cols[1]), float(cols[2]),
+                                   float(cols[3]), fixed) + "\n")
+            c_neg += kind == "negative"; c_bad += kind == "nonfinite"
+
+    k_neg = k_bad = 0
+    conn_header = fin.readline()
+    if conn_header:
+        fout.write(conn_header)
+        cparts = conn_header.split()
+        if cparts and cparts[0].upper() == "CONNECTIONS":
+            for _ in range(int(cparts[-1])):
+                line = fin.readline()
+                if not line:
+                    raise ValueError("file ended before all CONNECTIONS lines were read")
+                cols = line.split()
+                if area_fill is None and not math.isfinite(float(cols[5])):
+                    raise ValueError("NaN/inf area but no positive area to fill from; pass a number")
+                fixed, kind = classify_fix(float(cols[5]), area_fill, area_tol)
+                if kind is None:
+                    fout.write(line)
+                else:
+                    fout.write(CONN_FMT % (int(cols[0]), int(cols[1]), float(cols[2]),
+                                           float(cols[3]), float(cols[4]), fixed) + "\n")
+                    k_neg += kind == "negative"; k_bad += kind == "nonfinite"
+
+    for line in fin:
+        fout.write(line)
+    return c_neg, c_bad, k_neg, k_bad
+
+
+def fix_uge_volumes(input_path, output_path=None, nan_fill="min", h=None):
+    """Make every CELLS volume and CONNECTIONS area in a ``.uge`` file valid and positive.
+
+    Parameters
+    ----------
+        input_path : str
+            Path to the ``.uge`` file to correct.
+        output_path : str, optional
+            Destination path. If ``None`` (default) the file is corrected in
+            place via an atomic temp-file-then-replace.
+        nan_fill : str, float, or tuple
+            Fill strategy for NaN/inf entries: ``'min'`` (default), ``'mean'``,
+            an explicit number applied to both columns, or an explicit
+            ``(vol_fill, area_fill)`` pair. Passing a pair skips the scan, for
+            callers that have already run :func:`scan_uge`.
+        h : float, optional
+            Mesh resolution for the tolerances: volumes use the round-off
+            tolerance from :func:`roundoff_tolerances`, areas the
+            degenerate-edge tolerance from :func:`degenerate_tolerance`
+            (which contains the round-off one). ``None`` uses the absolute
+            fallbacks.
+
+    Returns
+    -------
+        Result
+            Namedtuple with the per-section correction counts and the fill
+            values used: ``(cell_negative, cell_nonfinite, conn_negative,
+            conn_nonfinite, vol_fill, area_fill)``.
+
+    Notes
+    -----
+        A clean file is returned byte-for-byte identical; only corrected lines
+        are rewritten. Round-off values and degenerate edges count as clean.
+    """
+    if isinstance(nan_fill, (tuple, list)):
+        vol_fill, area_fill = nan_fill
+    else:
+        try:
+            vol_fill = area_fill = float(nan_fill)
+        except (TypeError, ValueError):
+            vol_fill, area_fill = scan_fills(input_path, nan_fill, h)
+    vol_tol, _ = roundoff_tolerances(h)
+    area_tol = degenerate_tolerance(h)
+
+    if output_path is None:
+        d = os.path.dirname(os.path.abspath(input_path))
+        with open(input_path) as fin, \
+             tempfile.NamedTemporaryFile("w", dir=d, delete=False) as ftmp:
+            tmp = ftmp.name
+            counts = fix_stream(fin, ftmp, vol_fill, area_fill, vol_tol, area_tol)
+        os.replace(tmp, input_path)
+    else:
+        with open(input_path) as fin, open(output_path, "w") as fout:
+            counts = fix_stream(fin, fout, vol_fill, area_fill, vol_tol, area_tol)
+    return Result(*counts, vol_fill, area_fill)
+
+
+# --------------------------------------------------------------------------- #
+# dfnWorks methods
+# --------------------------------------------------------------------------- #
+def _fracture_of(self, cell_id):
+    """Fracture (material) id for a cell, or ``None`` when unavailable.
+
+    Parameters
+    ----------
+        self : object
+            DFN Class.
+        cell_id : int
+            One-based cell id from the ``.uge`` file.
+
+    Returns
+    -------
+        int or None
+    """
+    try:
+        return int(self.material_ids[cell_id - 1])
+    except (AttributeError, IndexError, TypeError, ValueError):
+        return None
+
+
+def _mesh_h(self):
+    """Mesh resolution ``h`` of the DFN, or ``None`` when it is not known.
+
+    ``DFN.h`` is initialised to the type ``float`` and only becomes a number
+    once the dfnGen parameter file has been parsed, so it is unusable on a
+    flow-only restart; anything that is not a positive finite number is
+    reported as unknown.
+
+    Parameters
+    ----------
+        self : object
+            DFN Class.
+
+    Returns
+    -------
+        float or None
+    """
+    h = getattr(self, "h", None)
+    if isinstance(h, (int, float)) and not isinstance(h, bool) \
+            and math.isfinite(h) and h > 0.0:
+        return float(h)
+    return None
+
+
+def _report_scan(self, res):
+    """Log every invalid coefficient and enforce the correction policy.
+
+    Writes the round-off tolerance the scan used, one line per degenerate
+    edge (accepted, see :func:`degenerate_tolerance`), then one line per
+    offending cell and per offending connection, to both the screen and the
+    log (``print_log`` at ``info`` level does both), then decides whether the
+    mesh may be corrected:
+
+      * rFram off and anything invalid -> hard error.
+      * invalid cells or invalid connections above :data:`BAD_FRACTION_LIMIT` of
+        their own total -> hard error, regardless of rFram.
+      * otherwise -> return, and let the caller apply the correction.
+
+    Parameters
+    ----------
+        self : object
+            DFN Class. Uses ``self.r_fram``, ``self.print_log``, and (when
+            available) ``self.material_ids`` to name the fracture a cell is on.
+            ``self.r_fram`` of ``None`` means "not known" -- it is only set when
+            a dfnGen parameter file has been parsed -- and is an error rather
+            than a silent "off".
+        res : ScanResult
+            Output of :func:`scan_uge`.
+
+    Returns
+    -------
+        bool
+            True if a correction must be applied, False if the mesh is clean.
+
+    Notes
+    -----
+        Exits the run via ``print_log(..., 'error')`` when the mesh is rejected.
+        The offending entries are dumped *before* that decision, so the listing
+        is available in both the pass and the fail case.
+    """
+    if res.roundoff_cells or res.roundoff_conns:
+        self.print_log(
+            f"--> Round-off: {res.roundoff_cells} negative cell volumes with "
+            f"|volume| <= {res.vol_tol:.3e} and {res.roundoff_conns} negative "
+            f"connection areas with |area| <= {res.area_tol:.3e} in {res.path} "
+            "are zero to working precision and were accepted as valid.")
+
+    if res.degenerate_conns:
+        self.print_log(
+            f"--> Degenerate Voronoi edges: {len(res.degenerate_conns)} negative "
+            f"connection areas with {res.area_tol:.3e} < |area| <= "
+            f"{res.degen_tol:.3e} in {res.path}. The four nodes around each "
+            "of these triangle edges are cocircular to within LaGriT's "
+            "in-circle tolerance, so the dual Voronoi edge has zero length and "
+            "its sign is set by which diagonal the reconnection kept. They are "
+            "accepted as zero (left unchanged) and are not counted as invalid:",
+            "warning")
+        for id1, id2, area in res.degenerate_conns:
+            f1 = _fracture_of(self, id1)
+            f2 = _fracture_of(self, id2)
+            self.print_log(
+                f"      cells {id1:>10d} -> {id2:>10d}"
+                f"  fractures {f1 if f1 is not None else '?'} -> "
+                f"{f2 if f2 is not None else '?'}"
+                f"  area {area: .12e}  [degenerate edge]")
+
+    n_bad_cells = len(res.bad_cells)
+    n_bad_conns = len(res.bad_conns)
+    if not n_bad_cells and not n_bad_conns:
+        return False
+
+    cell_frac = n_bad_cells / res.n_cells if res.n_cells else 0.0
+    conn_frac = n_bad_conns / res.n_conns if res.n_conns else 0.0
+
+    self.print_log(
+        f"--> Invalid geometric coefficients in {res.path}: "
+        f"{n_bad_cells} of {res.n_cells} cells ({100 * cell_frac:0.4f}%), "
+        f"{n_bad_conns} of {res.n_conns} connections ({100 * conn_frac:0.4f}%)",
+        "warning")
+    self.print_log(
+        f"--> Round-off tolerance: |volume| <= {res.vol_tol:.3e} and "
+        f"|area| <= {res.area_tol:.3e} are treated as zero (valid), not "
+        "negative; only values beyond that are listed below.")
+
+    if n_bad_cells:
+        self.print_log(
+            f"--> Invalid cells (volume < -{res.vol_tol:.3e}, NaN, or inf):")
+        for cid, x, y, z, vol, kind in res.bad_cells:
+            frac = _fracture_of(self, cid)
+            self.print_log(
+                f"      cell {cid:>10d}  fracture {frac if frac is not None else '?':>6}"
+                f"  x {x: .12e}  y {y: .12e}  z {z: .12e}"
+                f"  volume {vol: .12e}  [{kind}]")
+
+    if n_bad_conns:
+        self.print_log(
+            f"--> Invalid connections (area < -{res.area_tol:.3e}, NaN, or inf):")
+        for id1, id2, area, kind in res.bad_conns:
+            f1 = _fracture_of(self, id1)
+            f2 = _fracture_of(self, id2)
+            self.print_log(
+                f"      cells {id1:>10d} -> {id2:>10d}"
+                f"  fractures {f1 if f1 is not None else '?'} -> "
+                f"{f2 if f2 is not None else '?'}"
+                f"  area {area: .12e}  [{kind}]")
+
+    r_fram = getattr(self, "r_fram", None)
+    if r_fram is None:
+        self.print_log(
+            "Error. Invalid geometric coefficients in the UGE file, but it is "
+            "not known whether rFram was used to build this mesh.\nDFN.r_fram "
+            "is set from the dfnGen parameter file during dfn_gen; on a "
+            "flow-only restart from an existing mesh it is never set, so the "
+            "correction cannot be authorised automatically. Set DFN.r_fram "
+            "explicitly (True or False) before calling lagrit2pflotran.\n"
+            "Exiting\n", "error")
+
+    if not r_fram:
+        self.print_log(
+            "Error. Invalid geometric coefficients in the UGE file with rFram "
+            "turned off.\nWith rFram off the mesh is expected to conform, so "
+            "negative or non-finite volumes and areas indicate a meshing "
+            "failure rather than a relaxed-constraint artifact, and are not "
+            "corrected. Values within the round-off tolerance "
+            f"(|volume| <= {res.vol_tol:.3e}, |area| <= {res.area_tol:.3e}) "
+            f"and degenerate Voronoi edges (|area| <= {res.degen_tol:.3e}) "
+            "were already excluded. See the listing above for the offending "
+            "cells and connections.\nExiting\n", "error")
+
+    over = []
+    if cell_frac > BAD_FRACTION_LIMIT:
+        over.append(f"cells {100 * cell_frac:0.4f}%")
+    if conn_frac > BAD_FRACTION_LIMIT:
+        over.append(f"connections {100 * conn_frac:0.4f}%")
+    if over:
+        self.print_log(
+            f"Error. Invalid geometric coefficients exceed the "
+            f"{100 * BAD_FRACTION_LIMIT:0.2f}% limit ({'; '.join(over)}).\n"
+            "The correction is only defensible for a handful of degenerate "
+            "cells; at this level the flow solution would not be trustworthy. "
+            "Remesh (smaller h, or a less dense network) rather than "
+            "correcting. This is common in dense networks and around triple "
+            "intersections.\nExiting\n", "error")
+
+    self.print_log(
+        f"--> rFram is on and both fractions are below "
+        f"{100 * BAD_FRACTION_LIMIT:0.2f}%; correcting "
+        "(negative -> absolute value, NaN/inf -> smallest positive value).")
+    return True
+
+
+def correct_uge_file(self, dim=3):
+    """Correct the LaGriT ``.uge`` file for the PFLOTRAN flow solver.
+
+    Always runs. The behaviour splits on two independent axes:
+
+      * ``dim`` controls the aperture conversion and the output target. ``dim=3``
+        multiplies cell volumes by aperture and connection areas by the mean
+        aperture, writing ``<inp>_vol_area.uge``. ``dim=2`` keeps the raw
+        ``<inp>.uge`` as the active mesh (no aperture conversion).
+      * the mesh is *always* scanned for invalid coefficients first, and
+        :func:`_report_scan` decides what happens. Every offending cell and
+        connection is written to the screen and the log. A correction (negative
+        -> abs, NaN/inf -> smallest positive fill, applied *before* any aperture
+        scaling) is only made when ``self.r_fram`` is True and fewer than
+        :data:`BAD_FRACTION_LIMIT` of the cells *and* of the connections are
+        invalid. Otherwise the run exits with an error. Values within the
+        round-off tolerance (:func:`roundoff_tolerances` of ``self.h``) and
+        connection areas within the degenerate-edge tolerance
+        (:func:`degenerate_tolerance`) count as zero, not as invalid, in every
+        branch, and are written out unchanged.
+
+    In all cases ``self.uge_file`` is set to the file PFLOTRAN should read.
+
+    Parameters
+    ----------
+        self : object
+            DFN Class.
+        dim : int
+            Problem dimension, ``3`` (default) or ``2``.
+
+    Returns
+    -------
+        None
+
+    Notes
+    -----
+        Assumes the following instance variables exist:
+          - ``self.flow_solver`` (str): must be ``"PFLOTRAN"``.
+          - ``self.inp_file`` (str): used to derive the ``.uge`` file name.
+          - ``self.r_fram`` (bool): whether the feature-rejection mesher was used.
+          - ``self.h`` (float): mesh resolution, for the round-off tolerance
+            (falls back to :data:`ROUNDOFF_ABS` when not a number).
+          - ``self.material_ids`` (list[int]): material id per cell.
+          - ``self.aperture`` (list[float]): aperture per cell or material.
+          - ``self.cell_based_aperture`` (bool): aperture indexing mode.
+          - ``self.print_log`` (callable): logging method.
+    """
+    self.print_log("--> Starting: Correcting UGE file")
+    if self.flow_solver != "PFLOTRAN":
+        self.print_log("Error. Wrong flow solver requested\n", "error")
+
+    raw_uge = self.inp_file[:-4] + ".uge"
+    if not os.path.isfile(raw_uge):
+        self.print_log("Error. Cannot find uge file\nExiting\n", "error")
+
+    t = time()
+
+    # Scan before writing anything: the policy below can reject the mesh, and
+    # the dim=3 branch streams its output as it reads, so the counts have to be
+    # in hand first.
+    h = _mesh_h(self)
+    scan = scan_uge(raw_uge, "min", h)
+    fix = _report_scan(self, scan)      # exits the run if the mesh is rejected
+
+    if fix and scan.vol_fill is None and any(k == "nonfinite"
+                                             for *_, k in scan.bad_cells):
+        self.print_log(
+            "Error. NaN or inf cell volumes but no finite positive volume to "
+            "derive a fill value from.\nExiting\n", "error")
+    if fix and scan.area_fill is None and any(k == "nonfinite"
+                                              for *_, k in scan.bad_conns):
+        self.print_log(
+            "Error. NaN or inf connection areas but no finite positive area to "
+            "derive a fill value from.\nExiting\n", "error")
+
+    if dim == 3:
+        out_uge = self.inp_file[:-4] + "_vol_area.uge"
+        aperture = self.aperture
+        material_ids = self.material_ids
+        cell_based = self.cell_based_aperture
+
+        with open(raw_uge, "r") as fin, open(out_uge, "w") as fout:
+            cell_header = fin.readline(); fout.write(cell_header)
+            cell_lines = []
+            for _ in range(int(cell_header.split()[-1])):
+                parts = fin.readline().split(None, 5)
+                cid = int(parts[0]); vol = float(parts[4])
+                if fix:
+                    vol, _ = classify_fix(vol, scan.vol_fill, scan.vol_tol)
+                idx = cid - 1 if cell_based else material_ids[cid - 1] - 1
+                vol *= aperture[idx]
+                cell_lines.append(f"{cid}\t{parts[1]}\t{parts[2]}\t{parts[3]}\t{vol:0.12e}\n")
+            fout.writelines(cell_lines)
+
+            conn_header = fin.readline(); fout.write(conn_header)
+            conn_lines = []
+            for _ in range(int(conn_header.split()[-1])):
+                parts = fin.readline().split(None, 6)
+                id1 = int(parts[0]); id2 = int(parts[1]); area = float(parts[5])
+                if fix:
+                    area, _ = classify_fix(area, scan.area_fill, scan.degen_tol)
+                avg_ap = 0.5 * (aperture[material_ids[id1 - 1] - 1] +
+                                aperture[material_ids[id2 - 1] - 1])
+                area *= avg_ap
+                conn_lines.append(f"{id1}\t{id2}\t{parts[2]}\t{parts[3]}\t{parts[4]}\t{area:0.12e}\n")
+            fout.writelines(conn_lines)
+        self.uge_file = out_uge
+    else:
+        if fix:
+            # atomic in-place; reuse the fills already found by the scan
+            fix_uge_volumes(raw_uge,
+                            nan_fill=(scan.vol_fill, scan.area_fill), h=h)
+        self.uge_file = raw_uge
+
+    self.print_log(f"--> Complete: UGE file -> {self.uge_file} ({time() - t:0.3f} s)")
+

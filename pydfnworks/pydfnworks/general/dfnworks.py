@@ -31,7 +31,9 @@ class DFNWORKS():
         
         local prefix: indicates that the name contains only the most local directory
         
-        vtk_file: the name of the VTK file
+        vtu_file: the name of the XML VTK (.vtu) mesh file written by inp2vtu
+        
+        vtk_file: deprecated name of vtu_file
         
         inp_file: the name of the INP file
         
@@ -46,10 +48,8 @@ class DFNWORKS():
         perm_cell file: the name of the file containing cell permeabilities 
         
         aper_cell_file: the name of the file containing cell apertures
-        
-        freeze: indicates whether the class attributes can be modified
-        
-        h : FRAM length scale 
+
+        h : FRAM length scale
 
     Returns
     -------
@@ -64,7 +64,7 @@ class DFNWORKS():
     from pydfnworks.general.legal import legal
 
     from pydfnworks.general.images import failure, success
-    from pydfnworks.general.general_functions import dump_time, print_run_time, print_parameters, go_home, to_pickle, from_pickle,  call_executable, check_input_paths
+    from pydfnworks.general.general_functions import dump_time, print_run_time, print_parameters, go_home, to_pickle, from_pickle,  call_executable, check_input_paths, set_seed
     from pydfnworks.general.logging import initialize_log_file, print_log
 
 
@@ -80,6 +80,7 @@ class DFNWORKS():
     from pydfnworks.dfnGen.generation.hydraulic.io import dump_hydraulic_values, dump_aperture, dump_perm, dump_transmissivity, dump_fracture_info
 
     from pydfnworks.dfnGen.generation.stress import stress_based_apertures
+    from pydfnworks.dfnGen.generation.orientations import get_fracture_orientations
     from pydfnworks.dfnGen.generation.input_checking.parameter_dictionaries import load_parameters
     from pydfnworks.dfnGen.generation.input_checking.fracture_family import add_fracture_family, print_family_information
     from pydfnworks.dfnGen.generation.input_checking.add_fracture_family_to_params import write_fracture_families, reorder_fracture_families
@@ -87,7 +88,7 @@ class DFNWORKS():
 
     ## Functions from mesh_dfn dir
     from pydfnworks.dfnGen.meshing.mesh_dfn.mesh_dfn import mesh_network
-    from pydfnworks.dfnGen.meshing.mesh_dfn.mesh_dfn_helper import inp2gmv, create_mesh_links, inp2vtk_python, gather_mesh_information
+    from pydfnworks.dfnGen.meshing.mesh_dfn.mesh_dfn_helper import inp2gmv, create_mesh_links, inp2vtk_python, inp2vtu, gather_mesh_information
     from pydfnworks.dfnGen.meshing.mesh_dfn.poisson_driver import create_lagrit_parameters_file
     from pydfnworks.dfnGen.meshing.mesh_dfn.lagrit_merge_mesh import create_merge_poly_scripts, create_final_merge_script
     from pydfnworks.dfnGen.meshing.mesh_dfn.run_meshing import mesh_fractures_header,merge_network, check_for_missing_edges
@@ -120,7 +121,8 @@ class DFNWORKS():
     # dfnFlow
     import pydfnworks.dfnFlow
     from pydfnworks.dfnFlow.flow import dfn_flow, create_dfn_flow_links, set_flow_solver
-    from pydfnworks.dfnFlow.pflotran import lagrit2pflotran, pflotran, parse_pflotran_vtk_python, pflotran_cleanup, write_perms_and_correct_volumes_areas, zone2ex, dump_h5_files, correct_uge_file
+    from pydfnworks.dfnFlow.pflotran import lagrit2pflotran, pflotran, parse_pflotran_vtk, parse_pflotran_vtk_python, parse_pflotran_h5, pflotran_cleanup, write_perms_and_correct_volumes_areas, zone2ex, dump_h5_files
+    from pydfnworks.dfnFlow.uge_tools import correct_uge_file 
     from pydfnworks.dfnFlow.fehm import correct_stor_file, fehm
     from pydfnworks.dfnFlow.mass_balance import effective_perm
 
@@ -131,10 +133,13 @@ class DFNWORKS():
 
     # dfnGraph
     import pydfnworks.dfnGraph
-    from pydfnworks.dfnGraph.dfn2graph import create_graph, dump_json_graph, load_json_graph, plot_graph, dump_fractures, add_fracture_source, add_fracture_target
-    from pydfnworks.dfnGraph.pruning import k_shortest_paths_backbone, greedy_edge_disjoint, current_flow_threshold
-    from pydfnworks.dfnGraph.graph_flow import run_graph_flow, compute_dQ
-    from pydfnworks.dfnGraph.graph_transport import run_graph_transport
+    from pydfnworks.dfnGraph.construction.create_graph import create_graph
+    from pydfnworks.dfnGraph.construction.source_target import add_fracture_source, add_fracture_target
+    from pydfnworks.dfnGraph.io.serialization import dump_json_graph, load_json_graph, plot_graph, dump_fractures
+    from pydfnworks.dfnGraph.algorithms.pruning import k_shortest_paths_backbone, greedy_edge_disjoint, current_flow_threshold
+    from pydfnworks.dfnGraph.flow.graph_flow import run_graph_flow
+    from pydfnworks.dfnGraph.flow.metrics import compute_dQ
+    from pydfnworks.dfnGraph.transport.graph_transport import run_graph_transport
 
     ## BiGraFV
     from pydfnworks.dfnGraph.bigrafv.graph_uge import make_connection_data_frame, make_cell_data_frame, convert_graph_to_data_frames, add_boundary_nodes_as_cells, add_boundary_nodes_as_conns
@@ -158,6 +163,7 @@ class DFNWORKS():
                  mat_file='materialid.dat',
                  stor_file=None,
                  vtk_file=None,
+                 vtu_file=None,
                  num_nodes=None,
                  cell_based_aperture=False,
                  store_polygon_data=True,
@@ -171,6 +177,11 @@ class DFNWORKS():
         self.visual_mode = bool
         self.dudded_points = int
         self.domain = {'x': 0, 'y': 0, 'z': 0}
+        # Set from params['rFram'] by parse_params_file() during dfn_gen. Stays
+        # None on a flow-only restart from an existing mesh, where no params
+        # file was read; correct_uge_file() treats None as "unknown" rather than
+        # assuming rFram was off.
+        self.r_fram = None
 
         self.aper_cell_file = 'aper_node.dat'
         self.perm_cell_file = 'perm_node.dat'
@@ -187,6 +198,11 @@ class DFNWORKS():
         self.material_ids = float
 
         self.num_nodes = num_nodes
+        # vtk_file is the deprecated name of vtu_file (legacy .vtk output was
+        # replaced by XML .vtu); a .vtk name is converted to .vtu.
+        if vtu_file is None and vtk_file is not None:
+            vtu_file = os.path.splitext(vtk_file)[0] + '.vtu'
+        self.vtu_file = vtu_file
         self.vtk_file = vtk_file
         self.inp_file = inp_file
         self.uge_file = uge_file
