@@ -321,6 +321,26 @@ def load_parameters(self):
             'description':
             'See dfnGen documenation https://dfnworks.lanl.gov/dfngen.html for more details'
         },
+        'wiggle': {
+            'type':
+            bool,
+            'list':
+            False,
+            'value':
+            False,
+            'description':
+            'If True, a user-defined fracture that FRAM rejects is shifted by a few h (smallest working shift first) to try to fit it into the network. Shape, size and orientation are unchanged. Shifted fractures are listed in dfnGen_output/wiggled_fractures.dat'
+        },
+        'wiggleMaxSteps': {
+            'type':
+            int,
+            'list':
+            False,
+            'value':
+            5,
+            'description':
+            'Largest wiggle shift in multiples of h. Shifts of h, 2h, ..., wiggleMaxSteps*h are tried in six directions each. Only used if wiggle is True'
+        },
 
         # output
         'printRejectReasons': {

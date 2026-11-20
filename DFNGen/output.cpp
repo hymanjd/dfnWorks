@@ -64,6 +64,8 @@ void writeOutput(char* outputFolder, std::vector<Poly> &acceptedPoly, std::vecto
     writeRejectionStats(pstats, output);
     // write out userRejetedFracture information
     writeUserRejectedFractureInformation(pstats, output);
+    // Write out user fractures that were shifted to fit (wiggle option)
+    writeWiggledFractures(pstats, output);
     // Write families to output Files
     writeShapeFams(shapeFamilies, output);
     // Write fracture translations file
@@ -997,6 +999,34 @@ void writeUserRejectedFractureInformation(Stats &pstats, std::string &output) {
         
         for(unsigned int i = 0; i < pstats.rejectedUserFracture.size(); i++) {
             file << pstats.rejectedUserFracture[i].id << "," << pstats.rejectedUserFracture[i].userFractureType << "\n";
+        }
+        
+        file.close();
+    }
+}
+
+/* writeWiggledFractures() *******************************************************************/
+/*!
+ * \brief Writes wiggled_fractures.dat listing user-defined fractures that were
+ *        shifted to pass FRAM, with the shift applied to each.
+ *
+ * \param pstats Stats structure containing the wiggle records.
+ * \param output Path to output folder.
+ */
+void writeWiggledFractures(Stats &pstats, std::string &output) {
+    if (pstats.wiggledFracture.size() > 0) {
+        std::string logString = "Writing Wiggled Fractures File (wiggled_fractures.dat)\n";
+        logger.writeLogFile(INFO,  logString);
+        std::string fileName = output + "/wiggled_fractures.dat";
+        std::ofstream file;
+        file.open(fileName.c_str(), std::ofstream::out | std::ofstream::trunc);
+        checkIfOpen(file, fileName);
+        file << "Fracture id,User Fracture Type,dx,dy,dz,attempts\n";
+        file << std::setprecision(15);
+        
+        for (unsigned int i = 0; i < pstats.wiggledFracture.size(); i++) {
+            const WiggledFracture &w = pstats.wiggledFracture[i];
+            file << w.id << "," << w.userFractureType << "," << w.shift[0] << "," << w.shift[1] << "," << w.shift[2] << "," << w.attempts << "\n";
         }
         
         file.close();

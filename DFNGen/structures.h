@@ -141,6 +141,19 @@ struct RejectedUserFracture {
 /**************************************************************************************/
 /**************************************************************************************/
 /*!
+    Records a user-defined fracture that FRAM rejected and wigglePoly() then
+    fitted by a small translation.
+*/
+struct WiggledFracture {
+    int id;                 /*!< Fracture identifier (1-based, per user fracture type). */
+    int userFractureType;   /*!< -1 ellipse, -2 rectangle, -3 polygon. */
+    double shift[3];        /*!< Translation applied to the fracture. */
+    int attempts;           /*!< Number of shifts tried, including the accepted one. */
+};
+
+/**************************************************************************************/
+/**************************************************************************************/
+/*!
     Intersections structure.
     Contains all data pertaining to one intersection, including the IDs of both
     intersecting fractures, the intersection end points, any triple intersection
@@ -398,6 +411,12 @@ struct Stats {
     std::vector<struct GroupData> groupData;
     /*! Rejected User Fractures */
     std::vector<struct RejectedUserFracture>  rejectedUserFracture;
+    /*! Number of fractures accepted only after being wiggled (see wigglePoly()). */
+    unsigned int wiggledPolyCount;
+    /*! Total number of wiggle shifts tried, successful or not. */
+    unsigned long long int wiggleAttempts;
+    /*! Fractures accepted after a wiggle, with the shift applied. */
+    std::vector<struct WiggledFracture> wiggledFracture;
     // Constructor
     Stats();
 };

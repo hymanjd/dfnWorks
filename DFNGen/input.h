@@ -136,6 +136,8 @@ extern bool *p32Status;
 extern bool ignoreBoundaryFaces;
 extern int numOfLayers;
 extern int rejectsPerFracture;
+extern bool wiggle;
+extern int wiggleMaxSteps;
 extern double *e_p32Targets;
 extern double *r_p32Targets;
 extern float removeFracturesLessThan;

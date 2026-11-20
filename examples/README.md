@@ -29,6 +29,10 @@ cd tests/regression && python3 run_regression.py
 
    See dfnworks_overview_short.pdf
 
+#### wiggle_user_rects
+
+   Four user defined rectangular fractures, two of which FRAM rejects where they are placed. With the wiggle option on, each rejected fracture is shifted by a small multiple of h until it fits, keeping all of its intersections.
+
 
 
 - ### ade_example

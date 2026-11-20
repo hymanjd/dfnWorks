@@ -104,6 +104,8 @@ Stats::Stats() {
     tripleNodeCount = 0;
     areaBeforeRemoval = 0;
     areaAfterRemoval = 0;
+    wiggledPolyCount = 0;
+    wiggleAttempts = 0;
 }
 
 // Constructor

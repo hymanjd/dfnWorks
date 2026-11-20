@@ -15,7 +15,7 @@ OBJS = DFNmain.o debugFunctions.o distributions.o expDist.o hotkey.o \
        insertUserPolygonByCoord.o insertShape.o structures.o \
        computationalGeometry.o fractureEstimating.o generatingPoints.o \
        domain.o layers.o mathFunctions.o polygonBoundary.o vectorFunctions.o \
-       removeFractures.o clusterGroups.o
+       removeFractures.o clusterGroups.o wiggle.o
 
 # DFNGen must be the first target so a plain `make` builds it. The
 # dependency files are included at the end of this makefile: including them

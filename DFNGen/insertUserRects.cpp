@@ -9,6 +9,8 @@
 #include "domain.h"
 #include "testing.h"
 #include "logFile.h"
+#include "wiggle.h"
+#include <vector>
 
 
 /***********************************************************************/
@@ -62,6 +64,14 @@ void insertUserRects(std::vector<Poly>& acceptedPoly, std::vector<IntPoints> &in
         // Translate newPoly to urtranslation
         translate(newPoly, &urtranslation[index]);
         
+        // Keep the untruncated vertices so a rejected fracture can be wiggled
+        std::vector<double> pristineVertices;
+        int pristineNumNodes = newPoly.numberOfNodes;
+        
+        if (wiggle) {
+            pristineVertices.assign(newPoly.vertices, newPoly.vertices + 3 * pristineNumNodes);
+        }
+        
         if (domainTruncation(newPoly, domainSize) == 1) {
             //poly completely outside domain
             delete[] newPoly.vertices;
@@ -78,6 +88,11 @@ void insertUserRects(std::vector<Poly>& acceptedPoly, std::vector<IntPoints> &in
         createBoundingBox(newPoly);
         // Line of intersection and FRAM
         int rejectCode = intersectionChecking(newPoly, acceptedPoly, intpts, pstats, triplePoints);
+        
+        if (rejectCode != 0 && wiggle) {
+            // Try small shifts before giving up on this fracture
+            rejectCode = wigglePoly(newPoly, pristineVertices, pristineNumNodes, rejectCode, i + 1, -2, acceptedPoly, intpts, pstats, triplePoints);
+        }
         
         if(rejectCode == 0) {
             // If intersection is ok

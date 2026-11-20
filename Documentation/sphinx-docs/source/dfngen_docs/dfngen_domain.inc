@@ -548,6 +548,44 @@ Example:
 
 ----
 
+wiggle
+=================================
+
+Description: If a user-defined fracture (ellipse, rectangle, or polygon) is rejected by FRAM, shift it by a few *h* to try to fit it into the network instead of discarding it. Shifts of *h*, 2\ *h*, ..., :ref:`wiggleMaxSteps`\ *h* are tried along the fracture normal and two in-plane directions, and the smallest shift FRAM accepts is used. The fracture's shape, size, and orientation are not changed, and a shift is only used if the fracture still intersects every fracture it intersected where it was originally placed. If no shift works, the fracture is rejected as usual.
+
+Type: boolean
+
+Default: False
+
+Example:
+
+.. code-block:: python
+
+    DFN.params['wiggle']['value'] = True # Shift rejected user-defined fractures to fit them into the network
+
+.. note:: Fractures that were shifted are listed, with the shift applied to each, in dfnGen_output/wiggled_fractures.dat. Fractures that land outside the domain are not shifted. Stochastic fracture families are not affected.
+
+----
+
+wiggleMaxSteps
+=================================
+
+Description: Largest shift tried by :ref:`wiggle`, in multiples of *h*.
+
+Type: Positive Integer
+
+Default: 5
+
+Example:
+
+.. code-block:: python
+
+    DFN.params['wiggleMaxSteps']['value'] = 5 # Try shifts of h, 2h, ..., 5h
+
+.. note:: Only used if :ref:`wiggle` is True.
+
+----
+
 radiiListIncrease
 =================================
 

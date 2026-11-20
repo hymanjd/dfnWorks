@@ -566,6 +566,15 @@ std::string polygonFile;
     families (Set to 1 to ignore this feature)*/
 int rejectsPerFracture;
 
+/*! If true, a user-defined fracture rejected by FRAM is shifted by a few h
+    to try to fit it into the network (see wigglePoly()). Shape, size and
+    orientation are unchanged. */
+bool wiggle = false;
+
+/*! Largest wiggle shift, in multiples of h. Shifts of h, 2h, ..., wiggleMaxSteps*h
+    are tried in six directions each. */
+int wiggleMaxSteps = 5;
+
 
 // Z - layers in the DFN
 /*! Number of layers defined. */
@@ -818,6 +827,20 @@ void getInput(char* input, std::vector<Shape> &shapeFamily) {
     inputFile >> ch >> boundaryFaces[0] >> ch >> boundaryFaces[1] >> ch >> boundaryFaces[2] >> ch >> boundaryFaces[3] >> ch >> boundaryFaces[4] >> ch >> boundaryFaces[5];
     searchVar(inputFile, "rejectsPerFracture:");
     inputFile >> rejectsPerFracture;
+    
+    // Optional keys: absent in input files written before the wiggle option existed
+    if (searchVarOptional(inputFile, "wiggle:")) {
+        inputFile >> wiggle;
+    }
+    
+    if (searchVarOptional(inputFile, "wiggleMaxSteps:")) {
+        inputFile >> wiggleMaxSteps;
+    }
+    
+    if (wiggle == true) {
+        logString = "Wiggle is ON: rejected user-defined fractures are shifted by up to " + to_string(wiggleMaxSteps) + " h to fit them in\n";
+        logger.writeLogFile(INFO,  logString);
+    }
     searchVar(inputFile, "nFamRect:");
     inputFile >> nFamRect;
     searchVar(inputFile, "nFamEll:");

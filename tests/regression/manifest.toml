@@ -30,6 +30,12 @@ stages = ["gen", "mesh", "pflotran", "dfntrans"]
 expect_files = ["**/pflotran_vtu_outputs/*.pvd"]
 timeout = 300
 
+[cases.wiggle_user_rects]
+tier = "baseline"
+source = "wiggle_user_rects"
+stages = ["gen", "mesh"]
+expect_files = ["output/dfnGen_output/wiggled_fractures.dat"]
+
 [cases.4_user_ell_uniform]
 tier = "baseline"
 source = "4_user_ell_uniform"

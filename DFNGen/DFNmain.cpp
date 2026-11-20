@@ -836,6 +836,13 @@ int main (int argc, char **argv) {
     file << "Total Fractures Rejected: " << pstats.rejectedPolyCount << "\n";
     file << "Total Fractures Re-translated: " << pstats.retranslatedPolyCount << "\n";
     
+    if (wiggle) {
+        // Only reported when the wiggle option is on, so default output is unchanged
+        logString = "Total User Fractures Wiggled: " + std::string(to_string(pstats.wiggledPolyCount)) + " (" + std::string(to_string(pstats.wiggleAttempts)) + " shifts tried)\n";
+        logger.writeLogFile(INFO,  logString);
+        file << "Total User Fractures Wiggled: " << pstats.wiggledPolyCount << " (" << pstats.wiggleAttempts << " shifts tried)\n";
+    }
+    
     if (printConnectivityError == 1) {
         logString =  "ERROR: DFN generation has finished but the formed\nfracture network does not make a connection between\nthe user's specified boundary faces.\n";
         logger.writeLogFile(ERROR,  logString);

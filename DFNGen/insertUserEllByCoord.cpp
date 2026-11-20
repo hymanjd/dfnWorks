@@ -8,6 +8,8 @@
 #include "input.h"
 #include "domain.h"
 #include "logFile.h"
+#include "wiggle.h"
+#include <vector>
 
 /****************************************************************/
 /***********  Insert User Ellipses By Coord  ********************/
@@ -75,6 +77,14 @@ void insertUserEllByCoord(std::vector<Poly>& acceptedPoly, std::vector<IntPoints
         newPoly.translation[1] = .5 * (newPoly.vertices[1] + newPoly.vertices[midPtIdx + 1]);
         newPoly.translation[2] = .5 * (newPoly.vertices[2] + newPoly.vertices[midPtIdx + 2]);
         
+        // Keep the untruncated vertices so a rejected fracture can be wiggled
+        std::vector<double> pristineVertices;
+        int pristineNumNodes = newPoly.numberOfNodes;
+        
+        if (wiggle) {
+            pristineVertices.assign(newPoly.vertices, newPoly.vertices + 3 * pristineNumNodes);
+        }
+        
         if (domainTruncation(newPoly, domainSize) == 1) {
             // Poly completely outside domain
             delete[] newPoly.vertices;
@@ -91,6 +101,11 @@ void insertUserEllByCoord(std::vector<Poly>& acceptedPoly, std::vector<IntPoints
         createBoundingBox(newPoly);
         // Line of intersection and FRAM
         int rejectCode = intersectionChecking(newPoly, acceptedPoly, intpts, pstats, triplePoints);
+        
+        if (rejectCode != 0 && wiggle) {
+            // Try small shifts before giving up on this fracture
+            rejectCode = wigglePoly(newPoly, pristineVertices, pristineNumNodes, rejectCode, i + 1, -1, acceptedPoly, intpts, pstats, triplePoints);
+        }
         
         if(rejectCode == 0) {
             // If intersection is ok (FRAM passed all tests)

@@ -1,0 +1,23 @@
+{
+  "case": "wiggle_user_rects",
+  "created": "2026-11-20T13:34:09",
+  "git": "671ae020",
+  "host": "pn2408477.lanl.gov",
+  "metrics": {
+    "gen.final_fractures": 4,
+    "gen.intersection_length": 2.4,
+    "gen.intersections_shortened": 0,
+    "gen.isolated_removed": 0,
+    "gen.n_intersections": 3,
+    "gen.p30": 4.0,
+    "gen.p32": 5.12,
+    "gen.rejected": 0,
+    "gen.retranslated": 0,
+    "gen.surface_area": 5.12,
+    "gen.triple_points": 0,
+    "mesh.elements": 850,
+    "mesh.nodes": 466
+  },
+  "pydfnworks": "2.12.2",
+  "time_s": 1.72
+}

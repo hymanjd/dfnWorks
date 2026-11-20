@@ -10,6 +10,8 @@
 #include "domain.h"
 #include "readInputFunctions.h"
 #include "logFile.h"
+#include "wiggle.h"
+#include <vector>
 
 using std::cout;
 using std::endl;
@@ -119,6 +121,14 @@ void insertUserPolygonByCoord(std::vector<Poly>& acceptedPoly, std::vector<IntPo
         newPoly.translation[1] = .5 * (newPoly.vertices[1] + newPoly.vertices[midPtIdx + 1]);
         newPoly.translation[2] = .5 * (newPoly.vertices[2] + newPoly.vertices[midPtIdx + 2]);
         
+        // Keep the untruncated vertices so a rejected fracture can be wiggled
+        std::vector<double> pristineVertices;
+        int pristineNumNodes = newPoly.numberOfNodes;
+        
+        if (wiggle) {
+            pristineVertices.assign(newPoly.vertices, newPoly.vertices + 3 * pristineNumNodes);
+        }
+        
         if (domainTruncation(newPoly, domainSize) == 1) {
             // Poly completely outside domain
             pstats.rejectionReasons.outside++;
@@ -143,6 +153,11 @@ void insertUserPolygonByCoord(std::vector<Poly>& acceptedPoly, std::vector<IntPo
         createBoundingBox(newPoly);
         // Line of intersection and FRAM
         int rejectCode = intersectionChecking(newPoly, acceptedPoly, intpts, pstats, triplePoints);
+        
+        if (rejectCode != 0 && wiggle) {
+            // Try small shifts before giving up on this fracture
+            rejectCode = wigglePoly(newPoly, pristineVertices, pristineNumNodes, rejectCode, i + 1, -3, acceptedPoly, intpts, pstats, triplePoints);
+        }
         
         if(rejectCode == 0) {
             // Incriment counter of accepted polys
