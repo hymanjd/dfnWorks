@@ -28,6 +28,7 @@
  * intersected where the user placed it, so a wiggle never drops a connection.
  *
  * Each attempt rebuilds the polygon from \p pristineVertices, then runs
+ * layerTruncation() (stochastic layer families only),
  * domainTruncation(), createBoundingBox() and intersectionChecking(). On
  * success the intersections are already committed by intersectionChecking();
  * the caller still pushes \p newPoly to the accepted list, as it does for a
@@ -41,17 +42,27 @@
  * \param pristineVertices  Vertices of \p newPoly before domain truncation.
  * \param pristineNumNodes  Number of vertices in \p pristineVertices.
  * \param firstRejectCode   Reject code from the original intersectionChecking().
- * \param id                1-based user fracture id, for reporting.
- * \param userFractureType  -1 ellipse, -2 rectangle, -3 polygon, for reporting.
+ * \param id                1-based user fracture id, for reporting. Unused for
+ *                          stochastic fractures.
+ * \param userFractureType  -1 ellipse, -2 rectangle, -3 polygon for user-defined
+ *                          fractures, which are logged and listed in
+ *                          wiggled_fractures.dat. Pass the family index (>= 0)
+ *                          for a stochastic fracture, which is only counted.
  * \param acceptedPoly      Accepted polygons.
  * \param intPts            Accepted intersections.
  * \param pstats            Program statistics.
  * \param triplePoints      Accepted triple intersection points.
+ * \param layerIndex        1-based layer of a stochastic family, or 0. The shifted
+ *                          polygon is clipped to that layer again (see
+ *                          layerTruncation()).
+ * \param pristineTruncated True if \p pristineVertices were already clipped (by a
+ *                          layer) before domain truncation.
  * \return 0 if a shifted copy was accepted, otherwise \p firstRejectCode.
  */
 int wigglePoly(Poly &newPoly, const std::vector<double> &pristineVertices, int pristineNumNodes,
                int firstRejectCode, int id, int userFractureType,
                std::vector<Poly> &acceptedPoly, std::vector<IntPoints> &intPts,
-               Stats &pstats, std::vector<Point> &triplePoints);
+               Stats &pstats, std::vector<Point> &triplePoints,
+               int layerIndex = 0, bool pristineTruncated = false);
 
 #endif // _wiggle_h_

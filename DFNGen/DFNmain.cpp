@@ -22,6 +22,7 @@
 #include "fractureEstimating.h"
 #include "debugFunctions.h"
 #include "removeFractures.h"
+#include "wiggle.h"
 #include "polygonBoundary.h"
 
 // Used for automated python testing
@@ -294,6 +295,16 @@ int main (int argc, char **argv) {
                     key = getch();
                 }
                 
+                // Keep the vertices as they are before domain truncation so a
+                // rejected fracture can be wiggled (see wigglePoly())
+                std::vector<double> pristineVertices;
+                int pristineNumNodes = newPoly.numberOfNodes;
+                bool pristineTruncated = newPoly.truncated;
+                
+                if (wiggle) {
+                    pristineVertices.assign(newPoly.vertices, newPoly.vertices + 3 * pristineNumNodes);
+                }
+                
                 // Truncate poly if needed
                 // 1 if poly is outside of domain or has less than 3 vertices
                 if ( domainTruncation(newPoly, domainSize) == 1) {
@@ -322,6 +333,15 @@ int main (int argc, char **argv) {
                 //} else {
                 //    rejectCode = 0;
                 //}
+                
+                if (rejectCode != 0 && wiggle) {
+                    // Try shifting the fracture a few h where it is before
+                    // throwing it to a new random position
+                    rejectCode = wigglePoly(newPoly, pristineVertices, pristineNumNodes, rejectCode, 0, familyIndex,
+                                            acceptedPoly, intPts, pstats, triplePoints,
+                                            shapeFamilies[familyIndex].layer, pristineTruncated);
+                }
+                
 #ifdef TESTING
                 
                 if (rejectCode != 0) {
@@ -838,9 +858,10 @@ int main (int argc, char **argv) {
     
     if (wiggle) {
         // Only reported when the wiggle option is on, so default output is unchanged
-        logString = "Total User Fractures Wiggled: " + std::string(to_string(pstats.wiggledPolyCount)) + " (" + std::string(to_string(pstats.wiggleAttempts)) + " shifts tried)\n";
+        logString = "Total Fractures Wiggled: " + std::string(to_string(pstats.wiggledPolyCount)) + " (" + std::string(to_string(pstats.wiggleAttempts)) + " shifts tried)\n";
         logger.writeLogFile(INFO,  logString);
-        file << "Total User Fractures Wiggled: " << pstats.wiggledPolyCount << " (" << pstats.wiggleAttempts << " shifts tried)\n";
+        file << "Total Fractures Wiggled: " << pstats.wiggledPolyCount << " (" << pstats.wiggleAttempts << " shifts tried)\n";
+        file << "User-Defined Fractures Wiggled: " << pstats.wiggledFracture.size() << "\n";
     }
     
     if (printConnectivityError == 1) {

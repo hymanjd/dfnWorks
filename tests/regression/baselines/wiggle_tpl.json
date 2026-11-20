@@ -1,0 +1,23 @@
+{
+  "case": "wiggle_tpl",
+  "created": "2026-11-20T13:44:44",
+  "git": "1ff8c579",
+  "host": "pn2408477.lanl.gov",
+  "metrics": {
+    "gen.final_fractures": 70,
+    "gen.intersection_length": 234.436,
+    "gen.intersections_shortened": 38,
+    "gen.isolated_removed": 39,
+    "gen.n_intersections": 97,
+    "gen.p30": 0.0207407,
+    "gen.p32": 0.860478,
+    "gen.rejected": 0,
+    "gen.retranslated": 72,
+    "gen.surface_area": 2904.11,
+    "gen.triple_points": 0,
+    "mesh.elements": 118438,
+    "mesh.nodes": 57491
+  },
+  "pydfnworks": "2.12.2",
+  "time_s": 6.59
+}

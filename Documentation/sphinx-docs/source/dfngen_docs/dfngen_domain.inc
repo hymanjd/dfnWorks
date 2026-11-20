@@ -551,7 +551,7 @@ Example:
 wiggle
 =================================
 
-Description: If a user-defined fracture (ellipse, rectangle, or polygon) is rejected by FRAM, shift it by a few *h* to try to fit it into the network instead of discarding it. Shifts of *h*, 2\ *h*, ..., :ref:`wiggleMaxSteps`\ *h* are tried along the fracture normal and two in-plane directions, and the smallest shift FRAM accepts is used. The fracture's shape, size, and orientation are not changed, and a shift is only used if the fracture still intersects every fracture it intersected where it was originally placed. If no shift works, the fracture is rejected as usual.
+Description: If a fracture is rejected by FRAM, shift it by a few *h* to try to fit it into the network where it is. This applies to user-defined fractures (ellipses, rectangles, and polygons), which are otherwise discarded, and to fractures from stochastic families, which are otherwise moved to a new random position (see :ref:`rejectsPerFracture`). Shifts of *h*, 2\ *h*, ..., :ref:`wiggleMaxSteps`\ *h* are tried along the fracture normal and two in-plane directions, and the smallest shift FRAM accepts is used. The fracture's shape, size, and orientation are not changed, and a shift is only used if the fracture still intersects every fracture it intersected where it was originally placed. If no shift works, a user-defined fracture is rejected and a stochastic fracture is re-translated as usual.
 
 Type: boolean
 
@@ -563,7 +563,9 @@ Example:
 
     DFN.params['wiggle']['value'] = True # Shift rejected user-defined fractures to fit them into the network
 
-.. note:: Fractures that were shifted are listed, with the shift applied to each, in dfnGen_output/wiggled_fractures.dat. Fractures that land outside the domain are not shifted. Stochastic fracture families are not affected.
+.. note:: User-defined fractures that were shifted are listed, with the shift applied to each, in dfnGen_output/wiggled_fractures.dat. Shifted stochastic fractures are only counted (see DFN_output.txt). Fractures that land outside the domain are not shifted.
+
+.. warning:: For stochastic families, a wiggled fracture keeps the intersections it was rejected with, while a re-translated one lands somewhere new. Networks generated with wiggle on can therefore be better connected than the same input with wiggle off. Check the network statistics if this matters for your application.
 
 ----
 

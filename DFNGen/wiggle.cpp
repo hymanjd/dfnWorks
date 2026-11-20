@@ -4,6 +4,7 @@
 #include "computationalGeometry.h"
 #include "domain.h"
 #include "input.h"
+#include "layers.h"
 #include "logFile.h"
 
 /******************************************************************************
@@ -12,7 +13,7 @@
  ******************************************************************************/
 static void resetToShifted(Poly &newPoly, const std::vector<double> &pristineVertices,
                            int pristineNumNodes, const double *pristineTranslation,
-                           const double *shift) {
+                           bool pristineTruncated, const double *shift) {
     delete[] newPoly.vertices;
     newPoly.vertices = new double[3 * pristineNumNodes];
     newPoly.numberOfNodes = pristineNumNodes;
@@ -32,7 +33,7 @@ static void resetToShifted(Poly &newPoly, const std::vector<double> &pristineVer
         newPoly.faces[k] = 0;
     }
 
-    newPoly.truncated = 0;
+    newPoly.truncated = pristineTruncated;
     newPoly.groupNum = 0;
     newPoly.intersectionIndex.clear();
 }
@@ -96,7 +97,10 @@ static bool inPlaneBasis(const Poly &newPoly, const std::vector<double> &pristin
 int wigglePoly(Poly &newPoly, const std::vector<double> &pristineVertices, int pristineNumNodes,
                int firstRejectCode, int id, int userFractureType,
                std::vector<Poly> &acceptedPoly, std::vector<IntPoints> &intPts,
-               Stats &pstats, std::vector<Point> &triplePoints) {
+               Stats &pstats, std::vector<Point> &triplePoints,
+               int layerIndex, bool pristineTruncated) {
+    // Only user-defined fractures (negative type code) are logged and recorded one by one
+    const bool isUserFracture = (userFractureType < 0);
     const double zeroShift[3] = {0, 0, 0};
     const double pristineTranslation[3] = {newPoly.translation[0], newPoly.translation[1], newPoly.translation[2]};
     double u[3], v[3];
@@ -156,7 +160,12 @@ int wigglePoly(Poly &newPoly, const std::vector<double> &pristineVertices, int p
                               };
             attempts++;
             pstats.wiggleAttempts++;
-            resetToShifted(newPoly, pristineVertices, pristineNumNodes, pristineTranslation, shift);
+            resetToShifted(newPoly, pristineVertices, pristineNumNodes, pristineTranslation, pristineTruncated, shift);
+
+            // A stochastic fracture tied to a layer is clipped to it again after the shift
+            if (layerTruncation(newPoly, layerIndex)) {
+                continue;
+            }
 
             if (domainTruncation(newPoly, domainSize) == 1) {
                 continue; // Shift pushed the fracture out of the domain
@@ -179,6 +188,11 @@ int wigglePoly(Poly &newPoly, const std::vector<double> &pristineVertices, int p
             if (intersectionChecking(newPoly, acceptedPoly, intPts, pstats, triplePoints) == 0) {
                 pstats.rejectionReasons = savedReasons;
                 pstats.wiggledPolyCount++;
+
+                if (!isUserFracture) {
+                    return 0;
+                }
+
                 WiggledFracture record;
                 record.id = id;
                 record.userFractureType = userFractureType;
@@ -200,7 +214,12 @@ int wigglePoly(Poly &newPoly, const std::vector<double> &pristineVertices, int p
 
     // Nothing worked. Leave the polygon as it was before truncation.
     pstats.rejectionReasons = savedReasons;
-    resetToShifted(newPoly, pristineVertices, pristineNumNodes, pristineTranslation, zeroShift);
+    resetToShifted(newPoly, pristineVertices, pristineNumNodes, pristineTranslation, pristineTruncated, zeroShift);
+
+    if (!isUserFracture) {
+        return firstRejectCode;
+    }
+
     std::string logString = "Wiggle failed for user fracture " + std::to_string(id) + " after "
                             + std::to_string(attempts) + " attempt(s)\n";
     logger.writeLogFile(INFO, logString);

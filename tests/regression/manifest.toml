@@ -36,6 +36,11 @@ source = "wiggle_user_rects"
 stages = ["gen", "mesh"]
 expect_files = ["output/dfnGen_output/wiggled_fractures.dat"]
 
+[cases.wiggle_tpl]
+tier = "baseline"
+source = "./cases/wiggle_tpl"
+stages = ["gen", "mesh"]
+
 [cases.4_user_ell_uniform]
 tier = "baseline"
 source = "4_user_ell_uniform"

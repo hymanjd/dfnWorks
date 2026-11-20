@@ -838,7 +838,7 @@ void getInput(char* input, std::vector<Shape> &shapeFamily) {
     }
     
     if (wiggle == true) {
-        logString = "Wiggle is ON: rejected user-defined fractures are shifted by up to " + to_string(wiggleMaxSteps) + " h to fit them in\n";
+        logString = "Wiggle is ON: rejected fractures are shifted by up to " + to_string(wiggleMaxSteps) + " h to fit them in\n";
         logger.writeLogFile(INFO,  logString);
     }
     searchVar(inputFile, "nFamRect:");

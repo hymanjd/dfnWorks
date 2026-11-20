@@ -329,7 +329,7 @@ def load_parameters(self):
             'value':
             False,
             'description':
-            'If True, a user-defined fracture that FRAM rejects is shifted by a few h (smallest working shift first) to try to fit it into the network. Shape, size and orientation are unchanged. Shifted fractures are listed in dfnGen_output/wiggled_fractures.dat'
+            'If True, a fracture that FRAM rejects is shifted by a few h (smallest working shift first) to try to fit it into the network where it is, before a user-defined fracture is discarded or a stochastic fracture is re-translated. Shape, size and orientation are unchanged. Shifted user-defined fractures are listed in dfnGen_output/wiggled_fractures.dat'
         },
         'wiggleMaxSteps': {
             'type':
