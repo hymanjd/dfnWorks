@@ -1,5 +1,5 @@
 """
-Sweep driver_v2.py runs with parameters drawn by Latin hypercube:
+Sweep driver.py runs with parameters drawn by Latin hypercube:
 python3.13 make_yaml_file.py
 
 N_samples points (scipy.stats.qmc): each of the N equal-width bins of every swept
@@ -25,7 +25,7 @@ from scipy.stats import qmc
 
 from helper_functions import load_run_config, _merge, GRANITE_PROPS, WATER_PROPS
 
-# Run inputs for driver_v2.py. A run's YAML file overrides any of these; keys it
+# Run inputs for driver.py. A run's YAML file overrides any of these; keys it
 # leaves out keep these values (helper_functions.load_run_config).
 DEFAULT_CONFIG = {
     "jobname": "graph_sim_v2",
@@ -61,7 +61,7 @@ SWEEP = {
     "hydraulic_fractures.number":   (2, 20, "int"),
     "hydraulic_fractures.radius":   (60.0, 100.0, "linear"),   # y half-extent = radius * aspect must exceed wells.lateral_y
     "hydraulic_fractures.aspect":   (1.0, 3.0, "linear"),
-    # "hydraulic_fractures.aperture": (1.0e-4, 1.0e-3, "log"),
+    "hydraulic_fractures.aperture": (1.0e-5, 1.0e-3, "log"),
     # "flow.p_in":                    (1.1e6, 1.0e7, "log"),      # p_out = 1e6 Pa
 }
 
@@ -71,11 +71,11 @@ FIXED = {
     "mesh": False,                 # skip mesh_network: no pressure painting in a sweep
 }
 
-N_samples = 30              # number of LHS points
+N_samples = 100              # number of LHS points
 lhs_seed  = 7               # sampling seed (not the DFN seed)
 seeds     = None            # None: own DFN seed per run, seed = seed_base + index; or a list to cross with
 seed_base = 1000
-python_exe = "python3.13"   # interpreter run_all.sh calls driver_v2.py with
+python_exe = "python3.13"   # interpreter run_all.sh calls driver.py with
 
 
 # ## Sampling
@@ -178,7 +178,7 @@ def fixed_results_dir(fixed=FIXED):
 
 # bash for run_all.sh; @...@ are filled in by write_run_all
 RUN_ALL_HEAD = """#!/bin/bash
-# @NAME@: @TOTAL@ runs of driver_v2.py. Run from the folder holding driver_v2.py:
+# @NAME@: @TOTAL@ runs of driver.py. Run from the folder holding driver.py:
 #   bash @DIR@/run_all.sh
 # Prints each run's progress and logs it to @DIR@/progress.log. A run whose
 # @RESULTS@/<jobname>/thermal.npz exists is skipped, so rerunning resumes an
@@ -203,7 +203,7 @@ run() {
     fi
     echo "[$i/$TOTAL] $job: started $(date '+%Y-%m-%d %H:%M:%S')  ($cfg)" | tee -a "$LOG"
     local t0=$(date +%s) status
-    if $PY driver_v3.py "$cfg" > "$job.out" 2>&1; then
+    if $PY driver.py "$cfg" > "$job.out" 2>&1; then
         status="ok"; n_ok=$((n_ok + 1))
         [ -d "$RESULTS/$job" ] && mv "$job.out" "$RESULTS/$job/"
     else
